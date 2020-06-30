@@ -1,17 +1,21 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+from dash.dependencies import Input, Output
 import plotly.express as px
 import pandas as pd
 import numpy as np
 import pycocotools.coco as coco
 import pycocotools.mask as mask
+import os
+import json
+import base64
+from flask import Flask
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-cocoData = coco.COCO("data/annotations/instances_train2017.json")
+global cocoData
 
 def get_cat_size(filterClasses):
     catIds = cocoData.getCatIds(catNms=filterClasses)
@@ -47,21 +51,19 @@ def get_avg_area(filterClasses):
 
         segAreas = np.zeros((numObjs), dtype=np.float32)
         for ix, obj in enumerate(objs):
-            cls = obj['category_id']
             segAreas[ix] = obj['area']
-        proportionOfImg = (sum(segAreas) / len(segAreas)) / (width * height)
-        proportionsOfImg.append(proportionOfImg)
+        proportionsOfImg.append((sum(segAreas) / len(segAreas)) / (width * height))
 
     return sum(proportionsOfImg) / len(proportionsOfImg)
 
 
-def analyze_cats():
-    # display COCO categories and supercategories
+def analyze_cats(file):
+    global cocoData
+    cocoData = coco.COCO(file)
+    # display COCO categories
     cats = cocoData.loadCats(cocoData.getCatIds())
     nms = [cat['name'] for cat in cats]
     # print('COCO categories: \n{}\n'.format(' '.join(nms)))
-    supernms = set([cat['supercategory'] for cat in cats])
-    # print('COCO supercategories: \n{}'.format(' '.join(nms)))
 
     data = {}
     for cat in nms:
@@ -72,9 +74,49 @@ def analyze_cats():
     print(df)
     return df
 
-dataframe = analyze_cats()
-figProportion = px.pie(dataframe, values='size', names='category', title='Proportion of Categories')
-figAreas = px.bar(dataframe, x="category", y='avg percentage of img')
+
+def parse_contents(contents):
+    # print(contents)
+    content_type, content_string = contents.split(',')
+
+    print(content_type)
+    # print(content_string)
+
+    decoded = base64.b64decode(content_string).decode('UTF-8')
+    with open('output.json', 'w') as file:
+        file.write(decoded)
+    try:
+        dataframe = analyze_cats('output.json')
+    except Exception as e:
+        print(e)
+        return html.Div([
+            'There was an error processing this file.'
+        ])
+
+    figProportion = px.pie(dataframe, values='size', names='category', title='Proportion of Categories')
+    figAreas = px.bar(dataframe, x="category", y='avg percentage of img')
+
+    return html.Div([
+        dcc.Graph(
+            id='cat_proportion',
+            figure=figProportion
+        ),
+        dcc.Graph(
+            id='cat_areas',
+            figure=figAreas
+        )
+    ])
+
+
+# dataframe = analyze_cats('data/annotations/instances_train2017.json')
+@app.callback(Output('output-data-upload', 'children'),
+              [Input('upload-data', 'contents')])
+def update_output(contents):
+    if contents is not None:
+        print(contents)
+        children = parse_contents(contents)
+        return children
+
 
 app.layout = html.Div(children=[
     html.H1(children='Viz EDA'),
@@ -82,15 +124,12 @@ app.layout = html.Div(children=[
     html.Div(children='''
         Exploratory data analysis for computer vision and object recognition.
     '''),
+    html.Hr(),
+    dcc.Upload(id='upload-data', children=html.Button('Upload File'), multiple=False),
+    html.Hr(),
 
-    dcc.Graph(
-        id='cat_proportion',
-        figure=figProportion
-    ),
-    dcc.Graph(
-        id='cat_areas',
-        figure=figAreas
-    )
+    html.Div(id='output-data-upload'),
+
 ])
 
 if __name__ == '__main__':
