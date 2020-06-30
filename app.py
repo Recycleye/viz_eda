@@ -76,7 +76,7 @@ def analyze_cats(file):
 
 
 def parse_contents(contents):
-    # print(contents)
+    # TODO: fix for train metadata
     content_type, content_string = contents.split(',')
 
     print(content_type)
