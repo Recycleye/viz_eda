@@ -6,16 +6,13 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 import pycocotools.coco as coco
-import pycocotools.mask as mask
-import os
-import json
 import base64
-from flask import Flask
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 global cocoData
+
 
 def get_cat_size(filterClasses):
     catIds = cocoData.getCatIds(catNms=filterClasses)
@@ -49,7 +46,7 @@ def get_avg_area(filterClasses):
         objs = validObjs
         numObjs = len(objs)
 
-        segAreas = np.zeros((numObjs), dtype=np.float32)
+        segAreas = np.zeros(numObjs, dtype=np.float32)
         for ix, obj in enumerate(objs):
             segAreas[ix] = obj['area']
         proportionsOfImg.append((sum(segAreas) / len(segAreas)) / (width * height))
@@ -78,10 +75,8 @@ def analyze_cats(file):
 def parse_contents(contents):
     # TODO: fix for train metadata
     content_type, content_string = contents.split(',')
-
     print(content_type)
     # print(content_string)
-
     decoded = base64.b64decode(content_string).decode('UTF-8')
     with open('output.json', 'w') as file:
         file.write(decoded)
@@ -92,10 +87,12 @@ def parse_contents(contents):
         return html.Div([
             'There was an error processing this file.'
         ])
+    return make_figures(dataframe)
 
+
+def make_figures(dataframe):
     figProportion = px.pie(dataframe, values='size', names='category', title='Proportion of Categories')
     figAreas = px.bar(dataframe, x="category", y='avg percentage of img')
-
     return html.Div([
         dcc.Graph(
             id='cat_proportion',
@@ -108,7 +105,6 @@ def parse_contents(contents):
     ])
 
 
-# dataframe = analyze_cats('data/annotations/instances_train2017.json')
 @app.callback(Output('output-data-upload', 'children'),
               [Input('upload-data', 'contents')])
 def update_output(contents):
