@@ -73,7 +73,6 @@ def analyze_cats(file):
 
 
 def parse_contents(contents):
-    # TODO: fix for train metadata
     content_type, content_string = contents.split(',')
     print(content_type)
     # print(content_string)
@@ -91,8 +90,8 @@ def parse_contents(contents):
 
 
 def make_figures(dataframe):
-    figProportion = px.pie(dataframe, values='size', names='category', title='Proportion of Categories')
-    figAreas = px.bar(dataframe, x="category", y='avg percentage of img')
+    figProportion = px.bar(dataframe, x='category', y='size', title='Number of Objects per Category')
+    figAreas = px.bar(dataframe, x="category", y='avg percentage of img', title='Avg Proportion of Image')
     return html.Div([
         dcc.Graph(
             id='cat_proportion',
