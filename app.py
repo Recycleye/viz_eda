@@ -16,9 +16,9 @@ global cocoData
 
 def get_cat_size(filterClasses):
     catIds = cocoData.getCatIds(catNms=filterClasses)
-    imgIds = cocoData.getImgIds(catIds=catIds)
-    print("Number of images containing the class:", len(imgIds))
-    return len(imgIds)
+    annIds = cocoData.getAnnIds(catIds=catIds)
+    print("Number of objects in the class:", len(annIds))
+    return len(annIds)
 
 
 def get_avg_area(filterClasses):
