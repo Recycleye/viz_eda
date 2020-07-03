@@ -3,6 +3,7 @@ import pandas as pd
 import cv2
 from skimage import io
 from pycocotools import coco as coco
+from matplotlib.path import Path
 
 
 from app import cocoData
@@ -66,6 +67,38 @@ def analyze_cats(file):
     return df
 
 
+def segmentTo2DArray(segmentation):
+    polygon = []
+    for partition in segmentation:
+        for x, y in zip(partition[::2], partition[1::2]):
+            polygon.append((x,y))
+    return polygon
 
 
+def maskPixels(polygon, img):
+    path = Path(polygon)
+    xmin, ymin, xmax, ymax = np.asarray(path.get_extents(), dtype=int).ravel()
+    x, y = np.mgrid[:img['width'], :img['height']]
+    points = np.vstack((x.ravel(), y.ravel())).T
+    mask = path.contains_points(points)
+    path_points = points[np.where(mask)]
+    img_mask = mask.reshape(x.shape).T
+    return img_mask
+
+
+def getObjColors(maskPixels):
+    pixels = np.float32(maskPixels.reshape(-1, 3))
+    n_colors = 6
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, .1)
+    flags = cv2.KMEANS_RANDOM_CENTERS
+    _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
+    _, counts = np.unique(labels, return_counts=True)
+    dominant = palette[np.argmax(counts)]
+    return counts, palette * 255.0
+
+
+def getCatColors(filterClasses):
+    catIds = cocoData.getCatIds(catNms=filterClasses)
+    annIds = cocoData.getAnnIds(catIds=catIds)
+    #TODO: get dominant colors for categories
 
