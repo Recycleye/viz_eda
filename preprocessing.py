@@ -6,7 +6,7 @@ from pycocotools import coco as coco
 from matplotlib.path import Path
 
 
-from app import cocoData
+# from app import cocoData
 
 
 def get_cat_size(filterClasses):
@@ -86,19 +86,55 @@ def maskPixels(polygon, img):
     return img_mask
 
 
-def getObjColors(maskPixels):
-    pixels = np.float32(maskPixels.reshape(-1, 3))
-    n_colors = 6
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, .1)
+def getRawImages(filterClasses):
+    catIds = coco.getCatIds(catNms=filterClasses)
+    imgIds = coco.getImgIds(catIds=catIds)
+    imgs = coco.loadImgs(imgIds)
+    I_s = []
+    for img in imgs:
+        I = io.imread('{}/{}/{}'.format(dataDir, dataType, img['file_name'])) / 255.0
+        I_s.append(I)
+    return I_s
+
+
+def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
+    w_min = min(im.shape[1] for im in im_list)
+    im_list_resize = [cv2.resize(im, (w_min, int(im.shape[0] * w_min / im.shape[1])), interpolation=interpolation)
+                      for im in im_list]
+    return np.array(cv2.vconcat(im_list_resize))
+
+
+def getObjColors(image):
+    n_colors = 10
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, .1)
     flags = cv2.KMEANS_RANDOM_CENTERS
+
+    pixels = np.float32(image.reshape(-1, 3))
     _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
     _, counts = np.unique(labels, return_counts=True)
+
     dominant = palette[np.argmax(counts)]
-    return counts, palette * 255.0
+    palette *= 255.0
+    return counts, palette
+
+
+def displayDominantColors(counts, palette):
+    indices = np.argsort(counts)[::-1]
+    freqs = np.cumsum(np.hstack([[0], counts[indices]/counts.sum()]))
+    rows = np.int_(640*freqs)
+    dom_patch = np.zeros(shape=(400,640,3), dtype=np.uint8)
+    for i in range(len(rows) - 1):
+        dom_patch[rows[i]:rows[i + 1], :, :] += np.uint8(palette[indices[i]])
+    return dom_patch
 
 
 def getCatColors(filterClasses):
-    catIds = cocoData.getCatIds(catNms=filterClasses)
-    annIds = cocoData.getAnnIds(catIds=catIds)
-    #TODO: get dominant colors for categories
+    print("Loading images...")
+    images = getRawImages(filterClasses)
+    print("Stitching images...")
+    image = stichImages(images)
+    print("Processing dominant colours...")
+    counts, palette = getObjColors(image)
+    color_patch = displayDominantColors(counts, palette)
+    return color_patch
 

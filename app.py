@@ -52,10 +52,10 @@ def update_output(contents):
         children = parse_contents(contents)
         return children
 
-@app.callback(Output('dd-output-container', 'children'),
-              [Input('demo-dropdown', 'value')])
-def update_output(value):
-    return 'You have selected "{}"'.format(value)
+# @app.callback(Output('dd-output-container', 'children'),
+#               [Input('demo-dropdown', 'value')])
+# def update_output(value):
+#     return 'You have selected "{}"'.format(value)
 
 
 app.layout = html.Div(children=[
