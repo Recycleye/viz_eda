@@ -4,7 +4,7 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 import plotly.express as px
 import base64
-from preprocessing import analyze_cats
+from analysis import analyzeDataset
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -12,24 +12,24 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 global cocoData
 
 
-def parse_contents(contents):
+def parseContents(contents):
     content_type, content_string = contents.split(',')
     print(content_type)
     # print(content_string)
     decoded = base64.b64decode(content_string).decode('UTF-8')
     with open('output.json', 'w') as file:
         file.write(decoded)
-    try:
-        dataframe = analyze_cats('output.json')
-    except Exception as e:
-        print(e)
-        return html.Div([
-            'There was an error processing this file.'
-        ])
-    return make_figures(dataframe)
+    # try:
+    dataframe = analyzeDataset('output.json')
+    # except Exception as e:
+    #     print(e)
+    #     return html.Div([
+    #         'There was an error processing this file.'
+    #     ])
+    return makeFigures(dataframe)
 
 
-def make_figures(dataframe):
+def makeFigures(dataframe):
     figProportion = px.bar(dataframe, x='category', y='size', title='Number of Objects per Category')
     figAreas = px.bar(dataframe, x="category", y='avg percentage of img', title='Avg Proportion of Image')
     return html.Div([
@@ -46,10 +46,10 @@ def make_figures(dataframe):
 
 @app.callback(Output('output-data-upload', 'children'),
               [Input('upload-data', 'contents')])
-def update_output(contents):
+def updateOutput(contents):
     if contents is not None:
         print(contents)
-        children = parse_contents(contents)
+        children = parseContents(contents)
         return children
 
 # @app.callback(Output('dd-output-container', 'children'),

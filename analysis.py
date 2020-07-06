@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import cv2
+import random
 from skimage import io
 from pycocotools import coco as coco
 from matplotlib.path import Path
@@ -9,14 +10,34 @@ from matplotlib.path import Path
 # from app import cocoData
 
 
-def get_cat_size(filterClasses):
+def getNumObjs(filterClasses):
+    # Returns number of objects of a given class
     catIds = cocoData.getCatIds(catNms=filterClasses)
     annIds = cocoData.getAnnIds(catIds=catIds)
-    print("Number of objects in the class:", len(annIds))
     return len(annIds)
 
 
-def get_avg_area(filterClasses):
+def getNumImgs(filterClasses):
+    # Returns number of imgs with an object of a given class
+    catIds = cocoData.getCatIds(catNms=filterClasses)
+    imgIds = cocoData.getImgIds(catIds=catIds)
+    return len(imgIds)
+
+
+def getObjsPerImg(filterClasses):
+    # Returns average number of objects of a given class in an image
+    catIds = cocoData.getCatIds(catNms=filterClasses)
+    imgIds = cocoData.getImgIds(catIds=catIds)
+
+    objects_per_img = []
+    for img in imgIds:
+        annIds = cocoData.getAnnIds(imgIds=img)
+        objects_per_img.append(len(annIds))
+    return sum(objects_per_img) / len(objects_per_img)
+
+
+def getAvgArea(filterClasses):
+    # Returns average proportion an object of a given class takes up in the image
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
 
@@ -49,31 +70,13 @@ def get_avg_area(filterClasses):
     return sum(proportionsOfImg) / len(proportionsOfImg)
 
 
-def analyze_cats(file):
-    global cocoData
-    cocoData = coco.COCO(file)
-    # display COCO categories
-    cats = cocoData.loadCats(cocoData.getCatIds())
-    nms = [cat['name'] for cat in cats]
-    # print('COCO categories: \n{}\n'.format(' '.join(nms)))
-
-    data = {}
-    for cat in nms:
-        catSize = get_cat_size([cat])
-        avgArea = get_avg_area([cat])
-        data[len(data)] = [cat, catSize, avgArea]
-    df = pd.DataFrame.from_dict(data, orient='index', columns=['category', 'size', 'avg percentage of img'])
-    print(df)
-    return df
-
-
+## unecessary but maybe useful functions----------
 def segmentTo2DArray(segmentation):
     polygon = []
     for partition in segmentation:
         for x, y in zip(partition[::2], partition[1::2]):
             polygon.append((x,y))
     return polygon
-
 
 def maskPixels(polygon, img):
     path = Path(polygon)
@@ -84,12 +87,18 @@ def maskPixels(polygon, img):
     path_points = points[np.where(mask)]
     img_mask = mask.reshape(x.shape).T
     return img_mask
-
+## ------------------------------------------------
 
 def getRawImages(filterClasses):
-    catIds = coco.getCatIds(catNms=filterClasses)
-    imgIds = coco.getImgIds(catIds=catIds)
-    imgs = coco.loadImgs(imgIds)
+    dataDir = 'data'
+    dataType = 'val2017'
+    annFile = '{}/annotations/instances_{}.json'.format(dataDir, dataType)
+    catIds = cocoData.getCatIds(catNms=filterClasses)
+    imgIds = cocoData.getImgIds(catIds=catIds)
+
+    if len(imgIds) > 1000:
+        imgIds = random.sample(imgIds, 1000)
+    imgs = cocoData.loadImgs(imgIds)
     I_s = []
     for img in imgs:
         I = io.imread('{}/{}/{}'.format(dataDir, dataType, img['file_name'])) / 255.0
@@ -129,12 +138,39 @@ def displayDominantColors(counts, palette):
 
 
 def getCatColors(filterClasses):
-    print("Loading images...")
+    print("--Loading images...")
     images = getRawImages(filterClasses)
-    print("Stitching images...")
+    print("--Stitching images...")
     image = stichImages(images)
-    print("Processing dominant colours...")
+    print("--Processing dominant colours...")
     counts, palette = getObjColors(image)
     color_patch = displayDominantColors(counts, palette)
     return color_patch
 
+
+def analyzeDataset(file):
+    global cocoData
+    cocoData = coco.COCO(file)
+    # display COCO categories
+    cats = cocoData.loadCats(cocoData.getCatIds())
+    nms = [cat['name'] for cat in cats]
+    # print('COCO categories: \n{}\n'.format(' '.join(nms)))
+
+    data = {}
+    for cat in nms:
+        print(cat)
+        print("Getting number of objects...")
+        numObjs = getNumObjs([cat])
+        print("Getting number of images...")
+        numImgs = getNumImgs([cat])
+        print("Getting average number of objects per images...")
+        avgObjsPerImg = getObjsPerImg([cat])
+        print("Getting average area...")
+        avgArea = getAvgArea([cat])
+        # print("Getting dominant colours...")
+        # colorPatch = getCatColors([cat])
+        print("\n")
+        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea]
+    df = pd.DataFrame.from_dict(data, orient='index', columns=['category', 'number of objects', 'number of images', 'avg number of objects per img', 'avg percentage of img'])
+    print(df)
+    return df
