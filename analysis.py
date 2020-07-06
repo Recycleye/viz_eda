@@ -7,9 +7,6 @@ from pycocotools import coco as coco
 from matplotlib.path import Path
 
 
-# from app import cocoData
-
-
 def getNumObjs(filterClasses):
     # Returns number of objects of a given class
     catIds = cocoData.getCatIds(catNms=filterClasses)
@@ -31,7 +28,7 @@ def getObjsPerImg(filterClasses):
 
     objects_per_img = []
     for img in imgIds:
-        annIds = cocoData.getAnnIds(imgIds=img)
+        annIds = cocoData.getAnnIds(imgIds=img, catIds=catIds)
         objects_per_img.append(len(annIds))
     return sum(objects_per_img) / len(objects_per_img)
 
@@ -88,6 +85,7 @@ def maskPixels(polygon, img):
     img_mask = mask.reshape(x.shape).T
     return img_mask
 ## ------------------------------------------------
+
 
 def getRawImages(filterClasses):
     dataDir = 'data'
