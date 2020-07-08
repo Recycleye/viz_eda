@@ -30,10 +30,11 @@ def getObjsPerImg(filterClasses):
     for img in imgIds:
         annIds = cocoData.getAnnIds(imgIds=img, catIds=catIds)
         objects_per_img.append(len(annIds))
-    return sum(objects_per_img) / len(objects_per_img)
+    avg = sum(objects_per_img) / len(objects_per_img)
+    return avg, objects_per_img
 
 
-def getAvgArea(filterClasses):
+def getArea(filterClasses):
     # Returns average proportion an object of a given class takes up in the image
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
@@ -63,8 +64,8 @@ def getAvgArea(filterClasses):
         for ix, obj in enumerate(objs):
             segAreas[ix] = obj['area']
         proportionsOfImg.append((sum(segAreas) / len(segAreas)) / (width * height))
-
-    return sum(proportionsOfImg) / len(proportionsOfImg)
+    avg = sum(proportionsOfImg) / len(proportionsOfImg)
+    return avg, proportionsOfImg
 
 
 ## unecessary but maybe useful functions----------
@@ -162,9 +163,9 @@ def analyzeDataset(file):
         print("Getting number of images...")
         numImgs = getNumImgs([cat])
         print("Getting average number of objects per images...")
-        avgObjsPerImg = getObjsPerImg([cat])
+        avgObjsPerImg, _ = getObjsPerImg([cat])
         print("Getting average area...")
-        avgArea = getAvgArea([cat])
+        avgArea, _ = getArea([cat])
         # print("Getting dominant colours...")
         # colorPatch = getCatColors([cat])
         print("\n")
