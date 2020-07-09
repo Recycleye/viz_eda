@@ -5,13 +5,12 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import base64
 from analysis import analyzeDataset, getObjsPerImg, getArea
-import pandas as pd
-import json
+import plotly.graph_objects as go
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-global cocoData, dataframe
+global cocoData, dataframe, objCat, areaCat
 
 
 def parseContents(contents):
@@ -38,30 +37,65 @@ def uploadData(contents):
         return children
 
 
-@app.callback(
-    Output('obj_hist_out', 'children'),
-    [Input('objs_per_img', 'clickData')])
+@app.callback(Output('obj_hist_out', 'children'),
+              [Input('objs_per_img', 'clickData')])
 def displayObjHist(clickData):
     if clickData is not None:
         cat = clickData['points'][0]['x']
+        global objCat
+        objCat = cat
         title = "Number of " + cat + "s in an image w/ " + cat + "s"
         _, data = getObjsPerImg([cat])
-        df = pd.DataFrame(data=data, columns=['number of objs'])
-        fig = px.histogram(df, x='number of objs', title=title)
+        fig = go.Figure(data=[go.Histogram(x=data['number of objs'], xbins=dict(size=1), histnorm='probability')])
+        fig.update_layout(clickmode='event+select', yaxis_title="probability", title=title)
         return dcc.Graph(id='objs_hist', figure=fig)
 
 
-@app.callback(
-    Output('area_hist_out', 'children'),
-    [Input('cat_areas', 'clickData')])
+@app.callback(Output('area_hist_out', 'children'),
+              [Input('cat_areas', 'clickData')])
 def displayAreaHist(clickData):
     if clickData is not None:
         cat = clickData['points'][0]['x']
+        global areaCat
+        areaCat = cat
         title = "Percentage area of a(n) " + cat + " in an image"
         _, data = getArea([cat])
-        df = pd.DataFrame(data=data, columns=['proportion of img'])
-        fig = px.histogram(df, x='proportion of img', title=title)
+        fig = go.Figure(data=[go.Histogram(x=data['proportion of img'], xbins=dict(size=0.05), histnorm='probability')])
+        fig.update_layout(clickmode='event+select', yaxis_title="probability", title=title)
         return dcc.Graph(id='area_hist', figure=fig)
+
+
+@app.callback(Output('obj_imgs', 'children'),
+              [Input('objs_hist', 'clickData')])
+def displayObjImgs(clickData):
+    if clickData is not None:
+        _, data = getObjsPerImg([objCat])
+        num_objs = clickData['points'][0]['x']
+        imgIDs = data.loc[data['number of objs'] == num_objs]['imgID']
+        print(imgIDs)
+        htmlImgs = []
+        for imgID in list(imgIDs):
+            image_filename = 'data/val2017/' + str(imgID).zfill(12) + '.jpg'  # replace with your own image
+            encoded_image = base64.b64encode(open(image_filename, 'rb').read())
+            htmlImgs.append(html.Img(src='data:image/jpg;base64,{}'.format(encoded_image.decode())))
+        return html.Div(htmlImgs)
+
+
+@app.callback(Output('area_imgs', 'children'),
+              [Input('area_hist', 'clickData')])
+def displayAreaImgs(clickData):
+    # TODO: debug, some imgs are not displayed
+    if clickData is not None:
+        _, data = getArea([areaCat])
+        area = clickData['points'][0]['x']
+        imgIDs = data.loc[data['proportion of img'] == area]['imgID']
+        print(imgIDs)
+        htmlImgs = []
+        for imgID in list(imgIDs):
+            image_filename = 'data/val2017/' + str(imgID).zfill(12) + '.jpg'  # replace with your own image
+            encoded_image = base64.b64encode(open(image_filename, 'rb').read())
+            htmlImgs.append(html.Img(src='data:image/jpg;base64,{}'.format(encoded_image.decode())))
+        return html.Div(htmlImgs)
 
 
 @app.callback(Output('tabs-figures', 'children'),
@@ -85,18 +119,21 @@ def renderTab(tab):
             ])
 
         elif tab == 'tab-3':
-            fig = px.bar(dataframe, x='category', y='avg number of objects per img', title='Avg Number Of Objects per Image')
+            fig = px.bar(dataframe, x='category', y='avg number of objects per img',
+                         title='Avg Number Of Objects per Image')
             fig.update_layout(clickmode='event+select')
             return html.Div([
                 dcc.Graph(id='objs_per_img', figure=fig),
-                html.Div(id='obj_hist_out')
+                html.Div(id='obj_hist_out'),
+                html.Div(id='obj_imgs')
             ])
 
         elif tab == 'tab-4':
             fig = px.bar(dataframe, x="category", y='avg percentage of img', title='Avg Proportion of Image')
             return html.Div([
                 dcc.Graph(id='cat_areas', figure=fig),
-                html.Div(id='area_hist_out')
+                html.Div(id='area_hist_out'),
+                html.Div(id='area_imgs')
             ])
     except Exception as e:
         print(e)
@@ -105,7 +142,7 @@ def renderTab(tab):
         ])
 
 
-app.config['suppress_callback_exceptions']=True
+app.config['suppress_callback_exceptions'] = True
 app.layout = html.Div(children=[
     html.H1(children='Viz EDA'),
     html.Div(children='''

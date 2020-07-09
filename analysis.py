@@ -26,12 +26,17 @@ def getObjsPerImg(filterClasses):
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
 
-    objects_per_img = []
+    data = {}
     for img in imgIds:
         annIds = cocoData.getAnnIds(imgIds=img, catIds=catIds)
-        objects_per_img.append(len(annIds))
-    avg = sum(objects_per_img) / len(objects_per_img)
-    return avg, objects_per_img
+        data[len(data)] = [img, len(annIds)]
+    df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'number of objs'])
+    avg = df['number of objs'].sum() / len(df['number of objs'])
+    return avg, df
+
+
+def round_nearest(x, a=0.05):
+    return round(x / a) * a
 
 
 def getArea(filterClasses):
@@ -39,7 +44,7 @@ def getArea(filterClasses):
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
 
-    proportionsOfImg = []
+    data = {}
     for img in imgIds:
         imAnn = cocoData.loadImgs(ids=img)[0]
         width = imAnn['width']
@@ -63,46 +68,48 @@ def getArea(filterClasses):
         segAreas = np.zeros(numObjs, dtype=np.float32)
         for ix, obj in enumerate(objs):
             segAreas[ix] = obj['area']
-        proportionsOfImg.append((sum(segAreas) / len(segAreas)) / (width * height))
-    avg = sum(proportionsOfImg) / len(proportionsOfImg)
-    return avg, proportionsOfImg
+
+        proportion = round_nearest((sum(segAreas) / len(segAreas)) / (width * height))
+        data[len(data)] = [img, proportion]
+    df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'proportion of img'])
+    avg = df['proportion of img'].sum() / len(df['proportion of img'])
+    return avg, df
 
 
-## unecessary but maybe useful functions----------
+# unnecessary but maybe useful functions----------
 def segmentTo2DArray(segmentation):
     polygon = []
     for partition in segmentation:
         for x, y in zip(partition[::2], partition[1::2]):
-            polygon.append((x,y))
+            polygon.append((x, y))
     return polygon
+
 
 def maskPixels(polygon, img):
     path = Path(polygon)
-    xmin, ymin, xmax, ymax = np.asarray(path.get_extents(), dtype=int).ravel()
     x, y = np.mgrid[:img['width'], :img['height']]
     points = np.vstack((x.ravel(), y.ravel())).T
     mask = path.contains_points(points)
-    path_points = points[np.where(mask)]
     img_mask = mask.reshape(x.shape).T
     return img_mask
-## ------------------------------------------------
+# ------------------------------------------------
 
 
 def getRawImages(filterClasses):
     dataDir = 'data'
     dataType = 'val2017'
-    annFile = '{}/annotations/instances_{}.json'.format(dataDir, dataType)
+    # annFile = '{}/annotations/instances_{}.json'.format(dataDir, dataType)
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
 
     if len(imgIds) > 1000:
         imgIds = random.sample(imgIds, 1000)
     imgs = cocoData.loadImgs(imgIds)
-    I_s = []
+    loaded_imgs = []
     for img in imgs:
-        I = io.imread('{}/{}/{}'.format(dataDir, dataType, img['file_name'])) / 255.0
-        I_s.append(I)
-    return I_s
+        loaded_img = io.imread('{}/{}/{}'.format(dataDir, dataType, img['file_name'])) / 255.0
+        loaded_imgs.append(loaded_img)
+    return loaded_imgs
 
 
 def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
@@ -121,7 +128,7 @@ def getObjColors(image):
     _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
     _, counts = np.unique(labels, return_counts=True)
 
-    dominant = palette[np.argmax(counts)]
+    # dominant = palette[np.argmax(counts)]
     palette *= 255.0
     return counts, palette
 
@@ -130,7 +137,7 @@ def displayDominantColors(counts, palette):
     indices = np.argsort(counts)[::-1]
     freqs = np.cumsum(np.hstack([[0], counts[indices]/counts.sum()]))
     rows = np.int_(640*freqs)
-    dom_patch = np.zeros(shape=(400,640,3), dtype=np.uint8)
+    dom_patch = np.zeros(shape=(400, 640, 3), dtype=np.uint8)
     for i in range(len(rows) - 1):
         dom_patch[rows[i]:rows[i + 1], :, :] += np.uint8(palette[indices[i]])
     return dom_patch
@@ -170,6 +177,8 @@ def analyzeDataset(file):
         # colorPatch = getCatColors([cat])
         print("\n")
         data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea]
-    df = pd.DataFrame.from_dict(data, orient='index', columns=['category', 'number of objects', 'number of images', 'avg number of objects per img', 'avg percentage of img'])
+    df = pd.DataFrame.from_dict(data, orient='index',
+                                columns=['category', 'number of objects', 'number of images',
+                                         'avg number of objects per img', 'avg percentage of img'])
     print(df)
     return df
