@@ -4,13 +4,14 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 import plotly.express as px
 import base64
-from analysis import analyzeDataset, getObjsPerImg, getArea
+import matplotlib.pyplot as plt
+from io import BytesIO
+from skimage import io
+from analysis import analyzeDataset, getObjsPerImg, getArea, coco
 import plotly.graph_objects as go
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-
-global cocoData, dataframe, objCat, areaCat
 
 
 def parseContents(contents):
@@ -19,8 +20,8 @@ def parseContents(contents):
     with open('output.json', 'w') as file:
         file.write(decoded)
     try:
-        global dataframe
-        dataframe = analyzeDataset('output.json')
+        global analysis_df
+        analysis_df = analyzeDataset('output.json')
     except Exception as e:
         print(e)
         return html.Div([
@@ -44,11 +45,14 @@ def displayObjHist(clickData):
         cat = clickData['points'][0]['x']
         global objCat
         objCat = cat
-        title = "Number of " + cat + "s in an image w/ " + cat + "s"
+        title = "Number of " + cat + "s in an image w/ " + cat + "s\nClick on bin to see images"
         _, data = getObjsPerImg([cat])
         fig = go.Figure(data=[go.Histogram(x=data['number of objs'], xbins=dict(size=1), histnorm='probability')])
         fig.update_layout(clickmode='event+select', yaxis_title="probability", title=title)
-        return dcc.Graph(id='objs_hist', figure=fig)
+        return html.Div([
+            dcc.Graph(id='objs_hist', figure=fig),
+            html.Div(children='Click on bin to see images'),
+        ])
 
 
 @app.callback(Output('area_hist_out', 'children'),
@@ -62,39 +66,64 @@ def displayAreaHist(clickData):
         _, data = getArea([cat])
         fig = go.Figure(data=[go.Histogram(x=data['proportion of img'], xbins=dict(size=0.05), histnorm='probability')])
         fig.update_layout(clickmode='event+select', yaxis_title="probability", title=title)
-        return dcc.Graph(id='area_hist', figure=fig)
+        return html.Div([
+            dcc.Graph(id='area_hist', figure=fig),
+            html.Div(children='Click on bin to see images')
+        ])
+
+
+def fig_to_uri(in_fig, close_all=True, **save_args):
+    # Save a figure as a URI
+    out_img = BytesIO()
+    in_fig.savefig(out_img, format='png', **save_args)
+    if close_all:
+        in_fig.clf()
+        plt.close('all')
+    out_img.seek(0)  # rewind file
+    encoded = base64.b64encode(out_img.read()).decode("ascii").replace("\n", "")
+    return "data:image/png;base64,{}".format(encoded)
+
+
+def getHtmlImgs(imgIDs, cat):
+    # TODO: shorten runtime if possible
+    htmlImgs = []
+    cocoData = coco.COCO('output.json')
+    catIds = cocoData.getCatIds(catNms=[cat])
+    for imgID in list(imgIDs):
+        image_filename = 'data/val2017/' + str(imgID).zfill(12) + '.jpg'  # replace with your own image
+        I = io.imread(image_filename) / 255.0
+        plt.imshow(I)
+        plt.axis('off')
+        annIds = cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=None)
+        anns = cocoData.loadAnns(annIds)
+        cocoData.showAnns(anns)
+        decoded_image = fig_to_uri(plt)
+        htmlImgs.append(html.Img(src=decoded_image))
+    return htmlImgs
 
 
 @app.callback(Output('obj_imgs', 'children'),
               [Input('objs_hist', 'clickData')])
 def displayObjImgs(clickData):
+    # TODO: debug, image display causes app to crash after some time
     if clickData is not None:
         _, data = getObjsPerImg([objCat])
         num_objs = clickData['points'][0]['x']
         imgIDs = data.loc[data['number of objs'] == num_objs]['imgID']
         print(imgIDs)
-        htmlImgs = []
-        for imgID in list(imgIDs):
-            image_filename = 'data/val2017/' + str(imgID).zfill(12) + '.jpg'  # replace with your own image
-            encoded_image = base64.b64encode(open(image_filename, 'rb').read())
-            htmlImgs.append(html.Img(src='data:image/jpg;base64,{}'.format(encoded_image.decode())))
+        htmlImgs = getHtmlImgs(imgIDs, objCat)
         return html.Div(htmlImgs)
 
 
 @app.callback(Output('area_imgs', 'children'),
               [Input('area_hist', 'clickData')])
 def displayAreaImgs(clickData):
-    # TODO: debug, some imgs are not displayed
     if clickData is not None:
         _, data = getArea([areaCat])
         area = clickData['points'][0]['x']
         imgIDs = data.loc[data['proportion of img'] == area]['imgID']
         print(imgIDs)
-        htmlImgs = []
-        for imgID in list(imgIDs):
-            image_filename = 'data/val2017/' + str(imgID).zfill(12) + '.jpg'  # replace with your own image
-            encoded_image = base64.b64encode(open(image_filename, 'rb').read())
-            htmlImgs.append(html.Img(src='data:image/jpg;base64,{}'.format(encoded_image.decode())))
+        htmlImgs = getHtmlImgs(imgIDs, areaCat)
         return html.Div(htmlImgs)
 
 
@@ -103,35 +132,38 @@ def displayAreaImgs(clickData):
 def renderTab(tab):
     try:
         if tab == 'tab-1':
-            fig = px.bar(dataframe, x='category', y='number of objects', title='Number of Objects per Category')
-            fig2 = px.pie(dataframe, values='number of objects', names='category')
+            fig = px.bar(analysis_df, x='category', y='number of objects', title='Number of Objects per Category')
+            fig2 = px.pie(analysis_df, values='number of objects', names='category')
             return html.Div([
                 dcc.Graph(id='cat_objs_bar', figure=fig),
                 dcc.Graph(id='cat_objs_pie', figure=fig2)
             ])
 
         elif tab == 'tab-2':
-            fig = px.bar(dataframe, x='category', y='number of images', title="Number of Images per Category")
-            fig2 = px.pie(dataframe, values='number of images', names='category')
+            fig = px.bar(analysis_df, x='category', y='number of images', title="Number of Images per Category")
+            fig2 = px.pie(analysis_df, values='number of images', names='category')
             return html.Div([
                 dcc.Graph(id='cat_imgs_bar', figure=fig),
                 dcc.Graph(id='cat_imgs_pie', figure=fig2)
             ])
 
         elif tab == 'tab-3':
-            fig = px.bar(dataframe, x='category', y='avg number of objects per img',
-                         title='Avg Number Of Objects per Image')
+            title = 'Avg Number Of Objects per Image\nClick on bin for probability distribution'
+            fig = px.bar(analysis_df, x='category', y='avg number of objects per img', title=title)
             fig.update_layout(clickmode='event+select')
             return html.Div([
                 dcc.Graph(id='objs_per_img', figure=fig),
+                html.Div(children='Click on bin to see probability distribution'),
                 html.Div(id='obj_hist_out'),
                 html.Div(id='obj_imgs')
             ])
 
         elif tab == 'tab-4':
-            fig = px.bar(dataframe, x="category", y='avg percentage of img', title='Avg Proportion of Image')
+            title = 'Avg Proportion of Image\nClick on bin for probability distribution'
+            fig = px.bar(analysis_df, x="category", y='avg percentage of img', title=title)
             return html.Div([
                 dcc.Graph(id='cat_areas', figure=fig),
+                html.Div(children='Click on bin to see probability distribution'),
                 html.Div(id='area_hist_out'),
                 html.Div(id='area_imgs')
             ])

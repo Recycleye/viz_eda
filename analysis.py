@@ -156,6 +156,7 @@ def displayDominantColors(counts, palette):
 
 
 def getCatColors(filterClasses):
+    # TODO: memory allocation error, test on workstation/fix space complexity
     print("--Loading object masks...")
     segmented_masks = getSegmentedMasks(filterClasses)
     print("--Stitching objects...")
@@ -167,7 +168,6 @@ def getCatColors(filterClasses):
 
 
 def analyzeDataset(file):
-    # TODO: memory allocation error, test on workstation
     global cocoData
     cocoData = coco.COCO(file)
     # display COCO categories
@@ -186,13 +186,13 @@ def analyzeDataset(file):
         avgObjsPerImg, _ = getObjsPerImg([cat])
         print("Getting average area...")
         avgArea, _ = getArea([cat])
-        print("Getting dominant colours...")
-        colorPatch = getCatColors([cat])
+        # print("Getting dominant colours...")
+        # colorPatch = getCatColors([cat])
         print("\n")
-        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea, colorPatch]
+        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea]
     df = pd.DataFrame.from_dict(data, orient='index',
                                 columns=['category', 'number of objects', 'number of images',
-                                         'avg number of objects per img', 'avg percentage of img', 'dominant colours'])
+                                         'avg number of objects per img', 'avg percentage of img'])
     print(df)
     df.to_pickle("analysis.pkl")
     return df
