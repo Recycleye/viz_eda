@@ -3,6 +3,7 @@ import pandas as pd
 import cv2
 import random
 from skimage import io
+from skimage.color import gray2rgb
 from pycocotools import coco as coco
 from matplotlib.path import Path
 
@@ -76,7 +77,6 @@ def getArea(filterClasses):
     return avg, df
 
 
-# unnecessary but maybe useful functions----------
 def segmentTo2DArray(segmentation):
     polygon = []
     for partition in segmentation:
@@ -92,24 +92,35 @@ def maskPixels(polygon, img):
     mask = path.contains_points(points)
     img_mask = mask.reshape(x.shape).T
     return img_mask
-# ------------------------------------------------
 
 
-def getRawImages(filterClasses):
+def getSegmentedMasks(filterClasses):
+    # Returns single object annotation with background removed
     dataDir = 'data'
     dataType = 'val2017'
-    # annFile = '{}/annotations/instances_{}.json'.format(dataDir, dataType)
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
 
-    if len(imgIds) > 1000:
-        imgIds = random.sample(imgIds, 1000)
+    if len(imgIds) > 500:
+        imgIds = random.sample(imgIds, 500)
     imgs = cocoData.loadImgs(imgIds)
-    loaded_imgs = []
+
+    segmented_masks = []
     for img in imgs:
+        # Load image
         loaded_img = io.imread('{}/{}/{}'.format(dataDir, dataType, img['file_name'])) / 255.0
-        loaded_imgs.append(loaded_img)
-    return loaded_imgs
+        if len(loaded_img.shape) == 2:
+            loaded_img = gray2rgb(loaded_img)
+
+        # Load annotations
+        annIds = cocoData.getAnnIds(imgIds=img['id'], catIds=catIds, iscrowd=0)
+        anns = cocoData.loadAnns(annIds)
+
+        for ann in anns:
+            polyVerts = segmentTo2DArray(ann['segmentation'])
+            img_mask = maskPixels(polyVerts, img)
+            segmented_masks.append(loaded_img * img_mask[..., None])
+    return segmented_masks
 
 
 def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
@@ -125,6 +136,7 @@ def getObjColors(image):
     flags = cv2.KMEANS_RANDOM_CENTERS
 
     pixels = np.float32(image.reshape(-1, 3))
+    pixels = pixels[np.all(pixels != 0, axis=1), :]
     _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
     _, counts = np.unique(labels, return_counts=True)
 
@@ -144,10 +156,10 @@ def displayDominantColors(counts, palette):
 
 
 def getCatColors(filterClasses):
-    print("--Loading images...")
-    images = getRawImages(filterClasses)
-    print("--Stitching images...")
-    image = stichImages(images)
+    print("--Loading object masks...")
+    segmented_masks = getSegmentedMasks(filterClasses)
+    print("--Stitching objects...")
+    image = stichImages(segmented_masks)
     print("--Processing dominant colours...")
     counts, palette = getObjColors(image)
     color_patch = displayDominantColors(counts, palette)
@@ -155,6 +167,7 @@ def getCatColors(filterClasses):
 
 
 def analyzeDataset(file):
+    # TODO: memory allocation error, test on workstation
     global cocoData
     cocoData = coco.COCO(file)
     # display COCO categories
@@ -173,12 +186,13 @@ def analyzeDataset(file):
         avgObjsPerImg, _ = getObjsPerImg([cat])
         print("Getting average area...")
         avgArea, _ = getArea([cat])
-        # print("Getting dominant colours...")
-        # colorPatch = getCatColors([cat])
+        print("Getting dominant colours...")
+        colorPatch = getCatColors([cat])
         print("\n")
-        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea]
+        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea, colorPatch]
     df = pd.DataFrame.from_dict(data, orient='index',
                                 columns=['category', 'number of objects', 'number of images',
-                                         'avg number of objects per img', 'avg percentage of img'])
+                                         'avg number of objects per img', 'avg percentage of img', 'dominant colours'])
     print(df)
+    df.to_pickle("analysis.pkl")
     return df
