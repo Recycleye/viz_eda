@@ -1,17 +1,21 @@
+import base64
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
 import plotly.express as px
-import base64
+import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from io import BytesIO
 from skimage import io
 from analysis import analyzeDataset, getObjsPerImg, getArea, coco
-import plotly.graph_objects as go
+from anomaly import getOutliers, getAnomalies
+
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+global cocoData
+cocoData = coco.COCO('output.json')
 
 
 def parseContents(contents):
@@ -84,18 +88,22 @@ def fig_to_uri(in_fig, close_all=True, **save_args):
     return "data:image/png;base64,{}".format(encoded)
 
 
-def getHtmlImgs(imgIDs, cat):
+def getHtmlImgs(imgIDs, cat, outlying_anns=None):
     # TODO: shorten runtime if possible
     htmlImgs = []
-    cocoData = coco.COCO('output.json')
     catIds = cocoData.getCatIds(catNms=[cat])
-    for imgID in list(imgIDs):
+    for imgID in set(imgIDs):
         image_filename = 'data/val2017/' + str(imgID).zfill(12) + '.jpg'  # replace with your own image
         I = io.imread(image_filename) / 255.0
         plt.imshow(I)
         plt.axis('off')
-        annIds = cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=None)
-        anns = cocoData.loadAnns(annIds)
+        if outlying_anns is None:
+            annIds = cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=None)
+            anns = cocoData.loadAnns(annIds)
+        else:
+            annIds = set(cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=None))
+            annIds = list(annIds.intersection(set(outlying_anns)))
+            anns = cocoData.loadAnns(annIds)
         cocoData.showAnns(anns)
         decoded_image = fig_to_uri(plt)
         htmlImgs.append(html.Img(src=decoded_image))
@@ -127,6 +135,17 @@ def displayAreaImgs(clickData):
         return html.Div(htmlImgs)
 
 
+@app.callback(Output('anomaly_imgs', 'children'),
+              [Input('cat_selection', 'value')])
+def displayAnomalies(value):
+    # TODO: make faster
+    filterClasses = [value]
+    preds_df = getOutliers(filterClasses)
+    outlier_imgIds, outlier_annIds = getAnomalies(filterClasses, preds_df['lof'])
+    htmlImgs = getHtmlImgs(outlier_imgIds, filterClasses[0], outlying_anns=outlier_annIds)
+    return html.Div(htmlImgs)
+
+
 @app.callback(Output('tabs-figures', 'children'),
               [Input('tabs', 'value')])
 def renderTab(tab):
@@ -148,7 +167,7 @@ def renderTab(tab):
             ])
 
         elif tab == 'tab-3':
-            title = 'Avg Number Of Objects per Image\nClick on bin for probability distribution'
+            title = 'Avg Number Of Objects per Image'
             fig = px.bar(analysis_df, x='category', y='avg number of objects per img', title=title)
             fig.update_layout(clickmode='event+select')
             return html.Div([
@@ -159,7 +178,7 @@ def renderTab(tab):
             ])
 
         elif tab == 'tab-4':
-            title = 'Avg Proportion of Image\nClick on bin for probability distribution'
+            title = 'Avg Proportion of Image'
             fig = px.bar(analysis_df, x="category", y='avg percentage of img', title=title)
             return html.Div([
                 dcc.Graph(id='cat_areas', figure=fig),
@@ -167,6 +186,27 @@ def renderTab(tab):
                 html.Div(id='area_hist_out'),
                 html.Div(id='area_imgs')
             ])
+
+        elif tab == 'tab-5':
+            catIds = cocoData.getCatIds()
+            catDict = cocoData.loadCats(catIds)
+            catNms = [d['name'] for d in catDict]
+
+            options = []
+            for cat in catNms:
+                dropdown_args = ['label', 'value']
+                cat_tuple = [cat, cat]
+                options.append(dict(zip(dropdown_args, cat_tuple)))
+
+            return html.Div([
+                dcc.Dropdown(
+                    id='cat_selection',
+                    options=options,
+                    placeholder='Select a category'
+                ),
+                html.Div(id='anomaly_imgs')
+            ])
+
     except Exception as e:
         print(e)
         return html.Div([
@@ -191,6 +231,7 @@ app.layout = html.Div(children=[
         dcc.Tab(label='Images per class', value='tab-2'),
         dcc.Tab(label='Objects per image', value='tab-3'),
         dcc.Tab(label='Proportion of object in image per class', value='tab-4'),
+        dcc.Tab(label='Anomaly detection', value='tab-5'),
     ]),
     html.Div(id='tabs-figures')
 ])

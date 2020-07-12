@@ -95,7 +95,7 @@ def maskPixels(polygon, img):
 
 
 def getSegmentedMasks(filterClasses):
-    # Returns single object annotation with background removed
+    # Returns single object annotation with black background
     dataDir = 'data'
     dataType = 'val2017'
     catIds = cocoData.getCatIds(catNms=filterClasses)
