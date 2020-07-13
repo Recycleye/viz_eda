@@ -42,11 +42,11 @@ def loadHistograms(images, bins):
 
 
 def getOutliers(segmented_masks, nn=20, contamination=0.1,):
-    print("Calculating feature histograms...")
+    print("--Calculating feature histograms...")
     train_features = loadHistograms(segmented_masks, bins=(3, 3, 3))
     lof = LocalOutlierFactor(n_neighbors=nn, contamination=contamination)
 
-    print("Fitting anomaly detection model...")
+    print("--Fitting anomaly detection model...")
     results = pd.DataFrame()
     results['lof'] = lof.fit_predict(train_features)
     results['negative_outlier_factor'] = lof.negative_outlier_factor_

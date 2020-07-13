@@ -5,6 +5,8 @@ import random
 from pycocotools import coco as coco
 
 from anomaly import getOutliers, getAnomalies
+global cocoData
+cocoData = coco.COCO('output.json')
 
 
 def getNumObjs(filterClasses):
@@ -187,6 +189,7 @@ def analyzeDataset(annotation_file, image_folder):
         print("Getting abnormal objects...")
         preds_df = getOutliers(segmented_masks)
         outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df['lof'])
+        print("Done!")
         print()
         data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea, colorPatch, outlier_imgIds, outlier_annIds]
         cat_num += 1
@@ -195,5 +198,5 @@ def analyzeDataset(annotation_file, image_folder):
                                          'avg number of objects per img', 'avg percentage of img', 'dominant colours',
                                          'images w/ abnormal objects', 'abnormal objects'])
     print(df)
-    df.to_csv("analysis.csv")
+    df.to_pickle("analysis.pkl")
     return df

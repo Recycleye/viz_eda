@@ -3,13 +3,13 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from io import BytesIO
 from skimage import io
 from analysis import analyzeDataset, getObjsPerImg, getArea, coco
-from anomaly import getOutliers, getAnomalies
 
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -23,21 +23,24 @@ def parseContents(contents):
     decoded = base64.b64decode(content_string).decode('UTF-8')
     with open('output.json', 'w') as file:
         file.write(decoded)
+    # try:
+    global analysis_df
     try:
-        global analysis_df
-        analysis_df = analyzeDataset('output.json', "")
-    except Exception as e:
+        analysis_df = pd.read_pickle('analysis.pkl')
+    except FileNotFoundError as e:
         print(e)
-        return html.Div([
-            'Please load a valid COCO-style annotation file.'
-        ])
+        analysis_df = analyzeDataset('output.json', "data/val2017")
+    # except Exception as e:
+    #     print(e)
+    #     return html.Div([
+    #         'Please load a valid COCO-style annotation file.'
+    #     ])
 
 
 @app.callback(Output('output-data-upload', 'children'),
               [Input('upload-data', 'contents')])
 def uploadData(contents):
     if contents is not None:
-        print(contents)
         children = parseContents(contents)
         return children
 
@@ -138,11 +141,9 @@ def displayAreaImgs(clickData):
 @app.callback(Output('anomaly_imgs', 'children'),
               [Input('cat_selection', 'value')])
 def displayAnomalies(value):
-    # TODO: make faster
-    filterClasses = [value]
-    preds_df = getOutliers(filterClasses)
-    outlier_imgIds, outlier_annIds = getAnomalies(filterClasses, preds_df['lof'])
-    htmlImgs = getHtmlImgs(outlier_imgIds, filterClasses[0], outlying_anns=outlier_annIds)
+    outlier_imgIds = (analysis_df['images w/ abnormal objects'][analysis_df['category'] == value].tolist())[0]
+    outlier_annIds = (analysis_df['abnormal objects'][analysis_df['category'] == value].tolist())[0]
+    htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
     return html.Div(htmlImgs)
 
 
@@ -237,5 +238,5 @@ app.layout = html.Div(children=[
 ])
 
 if __name__ == '__main__':
-    # app.run_server(debug=True, port=8000)
-    analyzeDataset("data/annotations/instances_val2017.json", "data/val2017")
+    app.run_server(debug=True, port=8000)
+    # analyzeDataset("data/annotations/instances_val2017.json", "data/val2017")
