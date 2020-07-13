@@ -2,10 +2,9 @@ import numpy as np
 import pandas as pd
 import cv2
 import random
-from skimage import io
-from skimage.color import gray2rgb
 from pycocotools import coco as coco
-from matplotlib.path import Path
+
+from anomaly import getOutliers, getAnomalies
 
 
 def getNumObjs(filterClasses):
@@ -85,19 +84,18 @@ def segmentTo2DArray(segmentation):
     return polygon
 
 
-def maskPixels(polygon, img):
-    path = Path(polygon)
-    x, y = np.mgrid[:img['width'], :img['height']]
-    points = np.vstack((x.ravel(), y.ravel())).T
-    mask = path.contains_points(points)
-    img_mask = mask.reshape(x.shape).T
-    return img_mask
+def maskPixels(polygon, img_dict, image_folder):
+    img = cv2.imread('{}/{}'.format(image_folder, img_dict['file_name']))
+    mask = np.zeros(img.shape, dtype=np.uint8)
+    polygon = np.int32(polygon)
+    cv2.fillPoly(mask, [polygon], (255, 255, 255))
+    masked_image = cv2.bitwise_and(img, mask)
+    masked_image = cv2.cvtColor(masked_image, cv2.COLOR_BGR2RGB)
+    return masked_image
 
 
-def getSegmentedMasks(filterClasses):
+def getSegmentedMasks(filterClasses, image_folder):
     # Returns single object annotation with black background
-    dataDir = 'data'
-    dataType = 'val2017'
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
 
@@ -105,22 +103,17 @@ def getSegmentedMasks(filterClasses):
         imgIds = random.sample(imgIds, 500)
     imgs = cocoData.loadImgs(imgIds)
 
-    segmented_masks = []
-    for img in imgs:
-        # Load image
-        loaded_img = io.imread('{}/{}/{}'.format(dataDir, dataType, img['file_name'])) / 255.0
-        if len(loaded_img.shape) == 2:
-            loaded_img = gray2rgb(loaded_img)
-
+    masked_imgs = []
+    for img_dict in imgs:
         # Load annotations
-        annIds = cocoData.getAnnIds(imgIds=img['id'], catIds=catIds, iscrowd=0)
+        annIds = cocoData.getAnnIds(imgIds=img_dict['id'], catIds=catIds, iscrowd=0)
         anns = cocoData.loadAnns(annIds)
-
+        # Create masked images
         for ann in anns:
             polyVerts = segmentTo2DArray(ann['segmentation'])
-            img_mask = maskPixels(polyVerts, img)
-            segmented_masks.append(loaded_img * img_mask[..., None])
-    return segmented_masks
+            masked_img = maskPixels(polyVerts, img_dict, image_folder)
+            masked_imgs.append(masked_img)
+    return masked_imgs
 
 
 def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
@@ -132,16 +125,13 @@ def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
 
 def getObjColors(image):
     n_colors = 10
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, .1)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.1)
     flags = cv2.KMEANS_RANDOM_CENTERS
 
     pixels = np.float32(image.reshape(-1, 3))
     pixels = pixels[np.all(pixels != 0, axis=1), :]
     _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
     _, counts = np.unique(labels, return_counts=True)
-
-    # dominant = palette[np.argmax(counts)]
-    palette *= 255.0
     return counts, palette
 
 
@@ -155,10 +145,8 @@ def displayDominantColors(counts, palette):
     return dom_patch
 
 
-def getCatColors(filterClasses):
-    # TODO: memory allocation error, test on workstation/fix space complexity
-    print("--Loading object masks...")
-    segmented_masks = getSegmentedMasks(filterClasses)
+def getCatColors(segmented_masks):
+    # TODO: possible memory allocation error, test on workstation/fix space complexity
     print("--Stitching objects...")
     image = stichImages(segmented_masks)
     print("--Processing dominant colours...")
@@ -167,32 +155,45 @@ def getCatColors(filterClasses):
     return color_patch
 
 
-def analyzeDataset(file):
+def analyzeDataset(annotation_file, image_folder):
     global cocoData
-    cocoData = coco.COCO(file)
-    # display COCO categories
+    cocoData = coco.COCO(annotation_file)
     cats = cocoData.loadCats(cocoData.getCatIds())
     nms = [cat['name'] for cat in cats]
-    # print('COCO categories: \n{}\n'.format(' '.join(nms)))
 
     data = {}
+    cat_num = 1
     for cat in nms:
-        print(cat)
+        print(cat + ": " + str(cat_num) + "/" + str(len(nms)))
+
         print("Getting number of objects...")
         numObjs = getNumObjs([cat])
+
         print("Getting number of images...")
         numImgs = getNumImgs([cat])
+
         print("Getting average number of objects per images...")
         avgObjsPerImg, _ = getObjsPerImg([cat])
+
         print("Getting average area...")
         avgArea, _ = getArea([cat])
-        # print("Getting dominant colours...")
-        # colorPatch = getCatColors([cat])
-        print("\n")
-        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea]
+
+        print("Loading object masks...")
+        segmented_masks = getSegmentedMasks([cat], image_folder)
+
+        print("Getting dominant colours...")
+        colorPatch = getCatColors(segmented_masks)
+
+        print("Getting abnormal objects...")
+        preds_df = getOutliers(segmented_masks)
+        outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df['lof'])
+        print()
+        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea, colorPatch, outlier_imgIds, outlier_annIds]
+        cat_num += 1
     df = pd.DataFrame.from_dict(data, orient='index',
                                 columns=['category', 'number of objects', 'number of images',
-                                         'avg number of objects per img', 'avg percentage of img'])
+                                         'avg number of objects per img', 'avg percentage of img', 'dominant colours',
+                                         'images w/ abnormal objects', 'abnormal objects'])
     print(df)
-    df.to_pickle("analysis.pkl")
+    df.to_csv("analysis.csv")
     return df

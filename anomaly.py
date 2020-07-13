@@ -3,7 +3,6 @@ import pandas as pd
 import cv2
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
-from analysis import getSegmentedMasks
 from pycocotools import coco
 
 global cocoData
@@ -13,11 +12,12 @@ cocoData = coco.COCO('output.json')
 def imageHist(image, bins=(4, 6, 3)):
     valid_pix = np.float32(image.reshape(-1, 3))
     valid_pix = valid_pix[np.all(valid_pix != 0, axis=1), :]
-    # compute a 3D color histogram over the image and normalize it
-    hist = cv2.calcHist(valid_pix, [0, 1, 2], None, bins, [0, 180, 0, 256, 0, 256])
-    hist = cv2.normalize(hist, hist).flatten()
-    # return the histogram
-    return hist
+    if valid_pix.shape[0] > 0:
+        # compute a 3D color histogram over the image and normalize it
+        hist = cv2.calcHist(valid_pix, [0, 1, 2], None, bins, [0, 180, 0, 256, 0, 256])
+        hist = cv2.normalize(hist, hist).flatten()
+        # return the histogram
+        return hist
 
 
 def loadHistograms(images, bins):
@@ -26,7 +26,8 @@ def loadHistograms(images, bins):
         img_float32 = np.float32(image)
         image = cv2.cvtColor(img_float32, cv2.COLOR_RGB2HSV)
         features = imageHist(image, bins)
-        data.append(features)
+        if features is not None:
+            data.append(features)
     return np.array(data)
 
 
@@ -40,11 +41,8 @@ def loadHistograms(images, bins):
 #     model.fit(data)
 
 
-def getOutliers(filterClasses, nn=20, contamination=0.1):
-    print("Loading object masks...")
-    segmented_masks = getSegmentedMasks(filterClasses)
-
-    print("Preparing dataset...")
+def getOutliers(segmented_masks, nn=20, contamination=0.1,):
+    print("Calculating feature histograms...")
     train_features = loadHistograms(segmented_masks, bins=(3, 3, 3))
     lof = LocalOutlierFactor(n_neighbors=nn, contamination=contamination)
 

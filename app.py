@@ -25,7 +25,7 @@ def parseContents(contents):
         file.write(decoded)
     try:
         global analysis_df
-        analysis_df = analyzeDataset('output.json')
+        analysis_df = analyzeDataset('output.json', "")
     except Exception as e:
         print(e)
         return html.Div([
@@ -237,4 +237,5 @@ app.layout = html.Div(children=[
 ])
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8000)
+    # app.run_server(debug=True, port=8000)
+    analyzeDataset("data/annotations/instances_val2017.json", "data/val2017")
