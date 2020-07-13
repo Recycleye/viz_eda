@@ -23,18 +23,19 @@ def parseContents(contents):
     decoded = base64.b64decode(content_string).decode('UTF-8')
     with open('output.json', 'w') as file:
         file.write(decoded)
-    # try:
-    global analysis_df
     try:
-        analysis_df = pd.read_pickle('analysis.pkl')
-    except FileNotFoundError as e:
+        global analysis_df
+        try:
+            analysis_df = pd.read_pickle('analysis.pkl')
+            print("Loaded analysis.pkl!")
+        except FileNotFoundError as e:
+            print(e)
+            analysis_df = analyzeDataset('output.json', "data/val2017")
+    except Exception as e:
         print(e)
-        analysis_df = analyzeDataset('output.json', "data/val2017")
-    # except Exception as e:
-    #     print(e)
-    #     return html.Div([
-    #         'Please load a valid COCO-style annotation file.'
-    #     ])
+        return html.Div([
+            'Please load a valid COCO-style annotation file.'
+        ])
 
 
 @app.callback(Output('output-data-upload', 'children'),
@@ -116,7 +117,6 @@ def getHtmlImgs(imgIDs, cat, outlying_anns=None):
 @app.callback(Output('obj_imgs', 'children'),
               [Input('objs_hist', 'clickData')])
 def displayObjImgs(clickData):
-    # TODO: debug, image display causes app to crash after some time
     if clickData is not None:
         _, data = getObjsPerImg([objCat])
         num_objs = clickData['points'][0]['x']
@@ -129,6 +129,7 @@ def displayObjImgs(clickData):
 @app.callback(Output('area_imgs', 'children'),
               [Input('area_hist', 'clickData')])
 def displayAreaImgs(clickData):
+    # TODO: debug, images not displaying
     if clickData is not None:
         _, data = getArea([areaCat])
         area = clickData['points'][0]['x']

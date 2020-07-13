@@ -47,34 +47,34 @@ def getArea(filterClasses):
     imgIds = cocoData.getImgIds(catIds=catIds)
 
     data = {}
-    for img in imgIds:
-        imAnn = cocoData.loadImgs(ids=img)[0]
-        width = imAnn['width']
-        height = imAnn['height']
-
-        annIds = cocoData.getAnnIds(imgIds=img, catIds=catIds)
+    for imgId in imgIds:
+        imAnn = cocoData.loadImgs(ids=imgId)[0]
+        annIds = cocoData.getAnnIds(imgIds=imgId, catIds=catIds, iscrowd=0)
         objs = cocoData.loadAnns(ids=annIds)
-
-        validObjs = []
         for obj in objs:
-            x1 = np.max((0, obj['bbox'][0]))
-            y1 = np.max((0, obj['bbox'][1]))
-            x2 = np.min((width - 1, x1 + np.max((0, obj['bbox'][2] - 1))))
-            y2 = np.min((height - 1, y1 + np.max((0, obj['bbox'][3] - 1))))
-            if obj['area'] > 0 and x2 >= x1 and y2 >= y1:
-                obj['clean_bbox'] = [x1, y1, x2, y2]
-                validObjs.append(obj)
-        objs = validObjs
-        numObjs = len(objs)
-
-        segAreas = np.zeros(numObjs, dtype=np.float32)
-        for ix, obj in enumerate(objs):
-            segAreas[ix] = obj['area']
-
-        proportion = round_nearest((sum(segAreas) / len(segAreas)) / (width * height))
-        data[len(data)] = [img, proportion]
-    df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'proportion of img'])
+            proportion = obj['area'] / (imAnn['width'] * imAnn['height'])
+            data[len(data)] = [imgId, obj['id'], proportion]
+    df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'annID', 'proportion of img'])
     avg = df['proportion of img'].sum() / len(df['proportion of img'])
+    return avg, df
+
+
+def getSegRoughness(filterClasses):
+    # Returns average roughness an object of a given class
+    # "Roughness" = number of segmentation vertices / area of obj
+    catIds = cocoData.getCatIds(catNms=filterClasses)
+    imgIds = cocoData.getImgIds(catIds=catIds)
+
+    data = {}
+    for imgID in imgIds:
+        annIds = cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=0)
+        objs = cocoData.loadAnns(ids=annIds)
+        for obj in objs:
+            num_vertices = len(obj['segmentation'])
+            roughness = num_vertices / obj['area']
+            data[len(data)] = [imgID, obj['id'], roughness]
+    df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'annID', 'roughness of annotation'])
+    avg = df['roughness of annotation'].sum() / len(df['roughness of annotation'])
     return avg, df
 
 
@@ -148,7 +148,6 @@ def displayDominantColors(counts, palette):
 
 
 def getCatColors(segmented_masks):
-    # TODO: possible memory allocation error, test on workstation/fix space complexity
     print("--Stitching objects...")
     image = stichImages(segmented_masks)
     print("--Processing dominant colours...")
@@ -180,6 +179,9 @@ def analyzeDataset(annotation_file, image_folder):
         print("Getting average area...")
         avgArea, _ = getArea([cat])
 
+        print("Getting average roughness of segmentation...")
+        avgRoughness, _ = getSegRoughness([cat])
+
         print("Loading object masks...")
         segmented_masks = getSegmentedMasks([cat], image_folder)
 
@@ -191,12 +193,14 @@ def analyzeDataset(annotation_file, image_folder):
         outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df['lof'])
         print("Done!")
         print()
-        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea, colorPatch, outlier_imgIds, outlier_annIds]
+        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea, avgRoughness,
+                           colorPatch, outlier_imgIds, outlier_annIds]
         cat_num += 1
     df = pd.DataFrame.from_dict(data, orient='index',
                                 columns=['category', 'number of objects', 'number of images',
-                                         'avg number of objects per img', 'avg percentage of img', 'dominant colours',
-                                         'images w/ abnormal objects', 'abnormal objects'])
+                                         'avg number of objects per img', 'avg percentage of img',
+                                         'avg num vertices / area', 'dominant colours', 'images w/ abnormal objects',
+                                         'abnormal objects'])
     print(df)
     df.to_pickle("analysis.pkl")
     return df
