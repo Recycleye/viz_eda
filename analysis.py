@@ -3,6 +3,8 @@ import pandas as pd
 import cv2
 import random
 from pycocotools import coco as coco
+from tqdm import tqdm
+from sklearn.cluster import MiniBatchKMeans
 
 from anomaly import getOutliers, getAnomalies
 global cocoData
@@ -41,7 +43,7 @@ def round_nearest(x, a=0.05):
     return round(x / a) * a
 
 
-def getArea(filterClasses):
+def getArea(filterClasses, annIds=None):
     # Returns average proportion an object of a given class takes up in the image
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
@@ -49,8 +51,10 @@ def getArea(filterClasses):
     data = {}
     for imgId in imgIds:
         imAnn = cocoData.loadImgs(ids=imgId)[0]
-        annIds = cocoData.getAnnIds(imgIds=imgId, catIds=catIds, iscrowd=0)
-        objs = cocoData.loadAnns(ids=annIds)
+        all_annIds = cocoData.getAnnIds(imgIds=imgId, catIds=catIds, iscrowd=0)
+        if annIds is not None:
+            all_annIds = list(set(all_annIds).intersection(set(annIds)))
+        objs = cocoData.loadAnns(ids=all_annIds)
         for obj in objs:
             proportion = obj['area'] / (imAnn['width'] * imAnn['height'])
             data[len(data)] = [imgId, obj['id'], proportion]
@@ -59,7 +63,7 @@ def getArea(filterClasses):
     return avg, df
 
 
-def getSegRoughness(filterClasses):
+def getSegRoughness(filterClasses, annIds=None):
     # Returns average roughness an object of a given class
     # "Roughness" = number of segmentation vertices / area of obj
     catIds = cocoData.getCatIds(catNms=filterClasses)
@@ -67,8 +71,10 @@ def getSegRoughness(filterClasses):
 
     data = {}
     for imgID in imgIds:
-        annIds = cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=0)
-        objs = cocoData.loadAnns(ids=annIds)
+        all_annIds = cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=0)
+        if annIds is not None:
+            all_annIds = list(set(all_annIds).intersection(set(annIds)))
+        objs = cocoData.loadAnns(ids=all_annIds)
         for obj in objs:
             num_vertices = len(obj['segmentation'])
             roughness = num_vertices / obj['area']
@@ -105,17 +111,22 @@ def getSegmentedMasks(filterClasses, image_folder):
         imgIds = random.sample(imgIds, 500)
     imgs = cocoData.loadImgs(imgIds)
 
+    mask_annIds = []
     masked_imgs = []
-    for img_dict in imgs:
+    for img_dict in tqdm(imgs):
         # Load annotations
         annIds = cocoData.getAnnIds(imgIds=img_dict['id'], catIds=catIds, iscrowd=0)
         anns = cocoData.loadAnns(annIds)
+        mask_annIds.extend(annIds)
         # Create masked images
         for ann in anns:
             polyVerts = segmentTo2DArray(ann['segmentation'])
             masked_img = maskPixels(polyVerts, img_dict, image_folder)
-            masked_imgs.append(masked_img)
-    return masked_imgs
+            valid_pix = np.float32(masked_img.reshape(-1, 3))
+            valid_pix = valid_pix[np.all(valid_pix != 0, axis=1), :]
+            if valid_pix.shape[0] > 0:
+                masked_imgs.append(masked_img)
+    return masked_imgs, mask_annIds
 
 
 def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
@@ -126,7 +137,7 @@ def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
 
 
 def getObjColors(image):
-    n_colors = 10
+    n_colors = 4
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.1)
     flags = cv2.KMEANS_RANDOM_CENTERS
 
@@ -148,12 +159,34 @@ def displayDominantColors(counts, palette):
 
 
 def getCatColors(segmented_masks):
+    print("--Processing object colours")
+    colourData = []
+    for mask in tqdm(segmented_masks):
+        _, palette = getObjColors(mask)
+        colourData.append(palette)
     print("--Stitching objects...")
     image = stichImages(segmented_masks)
-    print("--Processing dominant colours...")
+    print("--Processing category colours...")
     counts, palette = getObjColors(image)
-    color_patch = displayDominantColors(counts, palette)
-    return color_patch
+    # color_patch = displayDominantColors(counts, palette)
+    return palette, colourData
+
+
+def imageHist(image, bins=(4, 6, 3)):
+    # compute a 3D color histogram over the image and normalize it
+    hist = cv2.calcHist(image, [0, 1, 2], None, bins, [0, 180, 0, 256, 0, 256])
+    hist = cv2.normalize(hist, hist).flatten()
+    return hist
+
+
+def getHistograms(images, bins):
+    data = []
+    for image in tqdm(images):
+        img_float32 = np.float32(image)
+        image = cv2.cvtColor(img_float32, cv2.COLOR_RGB2HSV)
+        features = imageHist(image, bins)
+        data.append(features)
+    return np.array(data)
 
 
 def analyzeDataset(annotation_file, image_folder):
@@ -167,6 +200,9 @@ def analyzeDataset(annotation_file, image_folder):
     for cat in nms:
         print(cat + ": " + str(cat_num) + "/" + str(len(nms)))
 
+        print("Loading object masks...")
+        segmented_masks, mask_annIds = getSegmentedMasks([cat], image_folder)
+
         print("Getting number of objects...")
         numObjs = getNumObjs([cat])
 
@@ -177,24 +213,24 @@ def analyzeDataset(annotation_file, image_folder):
         avgObjsPerImg, _ = getObjsPerImg([cat])
 
         print("Getting average area...")
-        avgArea, _ = getArea([cat])
+        avgArea, areaData = getArea([cat], annIds=mask_annIds)
 
         print("Getting average roughness of segmentation...")
-        avgRoughness, _ = getSegRoughness([cat])
-
-        print("Loading object masks...")
-        segmented_masks = getSegmentedMasks([cat], image_folder)
+        avgRoughness, roughnessData = getSegRoughness([cat], annIds=mask_annIds)
 
         print("Getting dominant colours...")
-        colorPatch = getCatColors(segmented_masks)
+        catColours, colourData = getCatColors(segmented_masks)
+
+        print("Getting object histograms...")
+        histData = getHistograms(segmented_masks, bins=(3, 3, 3))
 
         print("Getting abnormal objects...")
-        preds_df = getOutliers(segmented_masks)
+        preds_df = getOutliers(histData, areaData, roughnessData, colourData, contamination=0.01)
         outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df['lof'])
         print("Done!")
         print()
         data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea, avgRoughness,
-                           colorPatch, outlier_imgIds, outlier_annIds]
+                           catColours, outlier_imgIds, outlier_annIds]
         cat_num += 1
     df = pd.DataFrame.from_dict(data, orient='index',
                                 columns=['category', 'number of objects', 'number of images',

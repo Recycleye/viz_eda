@@ -3,33 +3,11 @@ import pandas as pd
 import cv2
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
+from sklearn.decomposition import PCA, SparsePCA
 from pycocotools import coco
 
 global cocoData
 cocoData = coco.COCO('output.json')
-
-
-def imageHist(image, bins=(4, 6, 3)):
-    valid_pix = np.float32(image.reshape(-1, 3))
-    valid_pix = valid_pix[np.all(valid_pix != 0, axis=1), :]
-    if valid_pix.shape[0] > 0:
-        # compute a 3D color histogram over the image and normalize it
-        hist = cv2.calcHist(valid_pix, [0, 1, 2], None, bins, [0, 180, 0, 256, 0, 256])
-        hist = cv2.normalize(hist, hist).flatten()
-        # return the histogram
-        return hist
-
-
-def loadHistograms(images, bins):
-    data = []
-    for image in images:
-        img_float32 = np.float32(image)
-        image = cv2.cvtColor(img_float32, cv2.COLOR_RGB2HSV)
-        features = imageHist(image, bins)
-        if features is not None:
-            data.append(features)
-    return np.array(data)
-
 
 # def findAnomalies(filterClasses):
 #     print("Loading object masks...")
@@ -41,14 +19,27 @@ def loadHistograms(images, bins):
 #     model.fit(data)
 
 
-def getOutliers(segmented_masks, nn=20, contamination=0.1,):
-    print("--Calculating feature histograms...")
-    train_features = loadHistograms(segmented_masks, bins=(3, 3, 3))
-    lof = LocalOutlierFactor(n_neighbors=nn, contamination=contamination)
+def getOutliers(histData, areaData, roughnessData, colourData, nn=20, contamination=0.1, ):
+    colourData_2d = []
+    for palette in colourData:
+        c = [j for i in palette for j in i]
+        colourData_2d.append(c)
+    pca = PCA(n_components=3)
+    colourData_2d = pca.fit_transform(colourData_2d)
+    pca = PCA(n_components=6)
+    histData = pca.fit_transform(histData)
+
+    train = pd.DataFrame(areaData['annID'])
+    train = train.join(pd.DataFrame(histData, columns=['hist1', 'hist2', 'hist3', 'hist4', 'hist5', 'hist6']))
+    train['area'] = areaData['proportion of img']
+    train['roughness'] = roughnessData['roughness of annotation']
+    train = train.join(pd.DataFrame(colourData_2d, columns=['colourX', 'colourY', 'colourZ']))
+    train = train.drop(['annID'], axis=1)
 
     print("--Fitting anomaly detection model...")
+    lof = LocalOutlierFactor(n_neighbors=nn, contamination=contamination)
     results = pd.DataFrame()
-    results['lof'] = lof.fit_predict(train_features)
+    results['lof'] = lof.fit_predict(train)
     results['negative_outlier_factor'] = lof.negative_outlier_factor_
     return results
 
@@ -69,4 +60,5 @@ def getAnomalies(filterClasses, preds):
         outlying_anns = set(outlying_objs_anns)
         if len(img_anns.intersection(outlying_anns)) > 0:
             imgs_with_outliers.append(img)
+    print("Imgs w/ outliers: " + str(imgs_with_outliers))
     return imgs_with_outliers, outlying_objs_anns

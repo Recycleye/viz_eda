@@ -239,5 +239,5 @@ app.layout = html.Div(children=[
 ])
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8000)
-    # analyzeDataset("data/annotations/instances_val2017.json", "data/val2017")
+    # app.run_server(debug=True, port=8000)
+    analyzeDataset("data/annotations/instances_val2017.json", "data/val2017")
