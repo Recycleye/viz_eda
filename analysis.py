@@ -57,6 +57,7 @@ def getArea(filterClasses, annIds=None):
         objs = cocoData.loadAnns(ids=all_annIds)
         for obj in objs:
             proportion = obj['area'] / (imAnn['width'] * imAnn['height'])
+            proportion = round_nearest(proportion)
             data[len(data)] = [imgId, obj['id'], proportion]
     df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'annID', 'proportion of img'])
     avg = df['proportion of img'].sum() / len(df['proportion of img'])

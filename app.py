@@ -9,8 +9,7 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from io import BytesIO
 from skimage import io
-from analysis import analyzeDataset, getObjsPerImg, getArea, coco
-
+from analysis import analyzeDataset, getObjsPerImg, getArea, coco, round_nearest
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -133,6 +132,9 @@ def displayAreaImgs(clickData):
     if clickData is not None:
         _, data = getArea([areaCat])
         area = clickData['points'][0]['x']
+        area = round_nearest(area)
+        print(area)
+        print(data['proportion of img'])
         imgIDs = data.loc[data['proportion of img'] == area]['imgID']
         print(imgIDs)
         htmlImgs = getHtmlImgs(imgIDs, areaCat)
@@ -239,5 +241,5 @@ app.layout = html.Div(children=[
 ])
 
 if __name__ == '__main__':
-    # app.run_server(debug=True, port=8000)
-    analyzeDataset("data/annotations/instances_val2017.json", "data/val2017")
+    app.run_server(debug=True, port=8000)
+    # analyzeDataset("data/annotations/instances_val2017.json", "data/val2017")
