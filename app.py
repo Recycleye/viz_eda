@@ -16,37 +16,64 @@ from analysis import analyzeDataset, getObjsPerImg, getArea, coco, round_nearest
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
-global cocoData
+analysis_df = pd.DataFrame()
 cocoData = coco.COCO('output.json')
-global anomaly_table_df
 anomaly_table_df = pd.DataFrame(columns=['Category', 'Image filename'])
+objCat = ''
+areaCat = ''
+datadir = ''
+upload_content = ''
 
 
 def parseContents(contents):
+    global analysis_df, datadir, upload_content
     content_type, content_string = contents.split(',')
-    decoded = base64.b64decode(content_string).decode('UTF-8')
-    with open('output.json', 'w') as file:
-        file.write(decoded)
-    try:
-        global analysis_df
+    if content_type == 'data:application/json;base64':
+        decoded = base64.b64decode(content_string).decode('UTF-8')
+        with open('output.json', 'w') as file:
+            file.write(decoded)
+        upload_content = 'output.json'
+    elif content_type == 'data:application/octet-stream;base64':
+        decoded = base64.b64decode(content_string)
         try:
-            analysis_df = pd.read_pickle('analysis.pkl')
+            analysis_df = pd.read_pickle(BytesIO(decoded), compression=None)
             print("Loaded analysis.pkl!")
-        except FileNotFoundError as e:
+        except Exception as e:
             print(e)
-            analysis_df = analyzeDataset('output.json', "data/val2017")
-    except Exception as e:
-        print(e)
-        return html.Div(children='Please load a valid COCO-style annotation file.',
-                        style={"margin-left": "50px", "margin-top": "50px"})
+            return html.Div(children='Please load a valid COCO-style annotation file.',
+                            style={"margin-left": "50px", "margin-top": "50px"})
 
 
-@app.callback(Output('output-data-upload', 'children'),
-              [Input('upload-data', 'contents')])
-def uploadData(contents):
+@app.callback(Output('output-ann-data-upload', 'children'), [Input('upload-annotation-data', 'contents')])
+def uploadAnnData(contents):
     if contents is not None:
         children = parseContents(contents)
         return children
+
+
+@app.callback(Output('output-analysis-data-upload', 'children'), [Input('upload-analysis-data', 'contents')])
+def uploadAnalysisData(contents):
+    if contents is not None:
+        children = parseContents(contents)
+        return children
+
+
+@app.callback(Output("output", "children"), [Input("input_data_dir", "value")])
+def dataDirInput(value):
+    global datadir
+    datadir = value
+
+
+@app.callback(Output("output1", "children"), [Input("analyze_button", "n_clicks")])
+def analyzeButton(n_clicks):
+    global datadir, upload_content, analysis_df
+    if n_clicks is not None and datadir != '' and upload_content != '':
+        try:
+            analysis_df = analyzeDataset(upload_content, datadir)
+        except Exception as e:
+            print(e)
+            return html.Div(children='Please load a valid COCO-style annotation file and define a valid folder.',
+                            style={"margin-left": "50px", "margin-top": "50px"})
 
 
 @app.callback(Output('obj_hist_out', 'children'),
@@ -96,11 +123,11 @@ def fig_to_uri(in_fig, close_all=True, **save_args):
 
 
 def getHtmlImgs(imgIDs, cat, outlying_anns=None):
-    # TODO: shorten runtime if possible
+    global datadir
     htmlImgs = []
     catIds = cocoData.getCatIds(catNms=[cat])
     for imgID in set(imgIDs):
-        image_filename = 'data/val2017/' + str(imgID).zfill(12) + '.jpg'  # replace with your own image
+        image_filename = datadir + '/' + str(imgID).zfill(12) + '.jpg'  # replace with your own image
         I = io.imread(image_filename) / 255.0
         plt.imshow(I)
         plt.axis('off')
@@ -146,6 +173,7 @@ def displayAreaImgs(clickData):
 @app.callback(Output('anomaly_imgs', 'children'),
               [Input('cat_selection', 'value')])
 def displayAnomalies(value):
+    global analysis_df
     try:
         outlier_imgIds = (analysis_df['images w/ abnormal objects'][analysis_df['category'] == value].tolist())[0]
         outlier_annIds = (analysis_df['abnormal objects'][analysis_df['category'] == value].tolist())[0]
@@ -159,7 +187,7 @@ def displayAnomalies(value):
 
 @app.callback(Output("loading-output-1", "children"),
               [Input("cat_selection", "value")])
-def input_triggers_spinner(value):
+def input_triggers_spinner():
     time.sleep(1)
     return
 
@@ -278,11 +306,35 @@ app.layout = html.Div(children=[
     html.Div(children='Exploratory data analysis for computer vision and object recognition.',
              style={"margin-left": "50px", "margin-bottom": "50px"}),
     html.Hr(),
-    dcc.Upload(id='upload-data', children=dbc.Button('Upload File', color="primary", block=True),
+    dcc.Upload(id='upload-analysis-data',
+               children=dbc.Button('Upload PKL Analysis File', color="primary", block=True),
                multiple=False, style={"margin-left": "10%", "margin-right": "10%"}),
     html.Hr(),
+    dbc.Row([
+        dbc.Col([
+            dcc.Upload(
+                id='upload-annotation-data',
+                children=dbc.Button('Upload JSON Annotation File', color="primary", block=True),
+                multiple=False, style={"margin-left": "20%"}),
 
-    html.Div(id='output-data-upload'),
+        ], width=4),
+        dbc.Col([
+            dbc.Input(
+                id="input_data_dir",
+                type="text",
+                placeholder="Relative path to images (i.e. data/val2017)"),
+        ], width=4),
+        dbc.Col([
+            dbc.Button('Analyze', id='analyze_button', color="primary", outline=True, block=True,
+                       style={"margin-right": "20%"}),
+        ], width=4),
+    ]),
+    html.Hr(),
+
+    html.Div(id='output-ann-data-upload'),
+    html.Div(id='output-analysis-data-upload'),
+    html.Div(id='output'),
+    html.Div(id='output1'),
 
     dcc.Tabs(id='tabs', value='tab-1', children=[
         dcc.Tab(label='Objects per class', value='tab-1'),
