@@ -1,6 +1,7 @@
 import base64
 import time
 import dash
+import dash_table
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_html_components as html
@@ -36,9 +37,8 @@ def parseContents(contents):
             analysis_df = analyzeDataset('output.json', "data/val2017")
     except Exception as e:
         print(e)
-        return html.Div([
-            'Please load a valid COCO-style annotation file.'
-        ])
+        return html.Div(children='Please load a valid COCO-style annotation file.',
+                        style={"margin-left": "50px", "margin-top": "50px"})
 
 
 @app.callback(Output('output-data-upload', 'children'),
@@ -146,10 +146,15 @@ def displayAreaImgs(clickData):
 @app.callback(Output('anomaly_imgs', 'children'),
               [Input('cat_selection', 'value')])
 def displayAnomalies(value):
-    outlier_imgIds = (analysis_df['images w/ abnormal objects'][analysis_df['category'] == value].tolist())[0]
-    outlier_annIds = (analysis_df['abnormal objects'][analysis_df['category'] == value].tolist())[0]
-    htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
-    return html.Div(htmlImgs)
+    try:
+        outlier_imgIds = (analysis_df['images w/ abnormal objects'][analysis_df['category'] == value].tolist())[0]
+        outlier_annIds = (analysis_df['abnormal objects'][analysis_df['category'] == value].tolist())[0]
+        htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
+        return html.Div(htmlImgs)
+    except Exception as e:
+        print(e)
+        return html.Div(children='Please load a valid COCO-style annotation file.',
+                        style={"margin-left": "25px", "margin-top": "25px"})
 
 
 @app.callback(Output("loading-output-1", "children"),
@@ -172,8 +177,17 @@ def displayAnomalyTable(n_clicks, cat, id):
         if (val is not None) and (not anomaly_table_df['Image filename'].str.contains(file).any()):
             new_row = {'Category': cat[i], 'Image filename': file}
             anomaly_table_df = anomaly_table_df.append(new_row, ignore_index=True)
-    table = dbc.Table.from_dataframe(anomaly_table_df, striped=True, bordered=True, hover=True)
-    return table
+    # table = dbc.Table.from_dataframe(anomaly_table_df, striped=True, bordered=True, hover=True)
+    return html.Div(
+        dash_table.DataTable(
+            id='table',
+            columns=[{"name": i, "id": i} for i in anomaly_table_df.columns],
+            data=anomaly_table_df.to_dict('records'),
+            row_deletable=True,
+            export_format='xlsx',
+            export_headers='display',
+        ), style={"margin-right": "100px"}
+    )
 
 
 @app.callback(Output('tabs-figures', 'children'),
@@ -224,35 +238,39 @@ def renderTab(tab):
             options = [{'label': i, 'value': i} for i in catNms]
 
             return html.Div([
-                dcc.Dropdown(
-                    id='cat_selection',
-                    options=options,
-                    value=catNms[0]
-                ),
                 dbc.Row([
-                    dbc.Col(html.Div(id='anomaly_imgs'), width=8),
                     dbc.Col([
-                        html.Div(['Flagged anomalies']),
-                        html.Div(id='anomaly_table')], width=4
+                        html.H3(children='Select a category',
+                                style={"margin-top": "25px", "margin-left": "25px"}),
+                        dcc.Dropdown(
+                            id='cat_selection',
+                            options=options,
+                            value=catNms[0],
+                            style={"margin-top": "25px", "margin-left": "25px", "margin-right": "50%"}
+                        ),
+                        html.Div(id='anomaly_imgs')], width=6),
+                    dbc.Col([
+                        html.H3(children='Flagged anomalies',
+                                style={"margin-top": "25px", "margin-right": "25px"}),
+                        html.Div(id='anomaly_table')], width=6
                     )
                 ])
             ])
 
     except Exception as e:
         print(e)
-        return html.Div([
-            'Please load a valid COCO-style annotation file.'
-        ])
+        return html.Div(children='Please load a valid COCO-style annotation file.',
+                        style={"margin-left": "25px", "margin-top": "25px"})
 
 
 app.config['suppress_callback_exceptions'] = True
 app.layout = html.Div(children=[
-    html.H1(children='Viz EDA'),
-    html.Div(children='''
-        Exploratory data analysis for computer vision and object recognition.
-    '''),
+    html.H1(children='Viz EDA', style={"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}),
+    html.Div(children='Exploratory data analysis for computer vision and object recognition.',
+             style={"margin-left": "50px", "margin-bottom": "50px"}),
     html.Hr(),
-    dcc.Upload(id='upload-data', children=html.Button('Upload File'), multiple=False),
+    dcc.Upload(id='upload-data', children=dbc.Button('Upload File', color="primary", block=True),
+               multiple=False, style={"margin-left": "10%", "margin-right": "10%"}),
     html.Hr(),
 
     html.Div(id='output-data-upload'),
@@ -261,7 +279,7 @@ app.layout = html.Div(children=[
         dcc.Tab(label='Objects per class', value='tab-1'),
         dcc.Tab(label='Images per class', value='tab-2'),
         dcc.Tab(label='Objects per image', value='tab-3'),
-        dcc.Tab(label='Proportion of object in image per class', value='tab-4'),
+        dcc.Tab(label='Proportion of object in image', value='tab-4'),
         dcc.Tab(label='Anomaly detection', value='tab-5'),
     ]),
     html.Div(id='tabs-figures'),

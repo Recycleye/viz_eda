@@ -226,7 +226,7 @@ def analyzeDataset(annotation_file, image_folder):
         histData = getHistograms(segmented_masks, bins=(3, 3, 3))
 
         print("Getting abnormal objects...")
-        preds_df = getOutliers(histData, areaData, roughnessData, colourData, contamination=0.01)
+        preds_df = getOutliers(histData, areaData, roughnessData, colourData, contamination=0.05)
         outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df['lof'])
         print("Done!")
         print()
