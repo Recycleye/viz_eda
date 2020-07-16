@@ -1,8 +1,10 @@
 import base64
+import time
 import dash
 import dash_core_components as dcc
+import dash_bootstrap_components as dbc
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State, ALL
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -12,9 +14,11 @@ from skimage import io
 from analysis import analyzeDataset, getObjsPerImg, getArea, coco, round_nearest
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 global cocoData
 cocoData = coco.COCO('output.json')
+global anomaly_table_df
+anomaly_table_df = pd.DataFrame(columns=['Category', 'Image filename'])
 
 
 def parseContents(contents):
@@ -52,13 +56,13 @@ def displayObjHist(clickData):
         cat = clickData['points'][0]['x']
         global objCat
         objCat = cat
-        title = "Number of " + cat + "s in an image w/ " + cat + "s\nClick on bin to see images"
+        title = "Number of " + cat + "s in an image w/ " + cat + "s"
         _, data = getObjsPerImg([cat])
         fig = go.Figure(data=[go.Histogram(x=data['number of objs'], xbins=dict(size=1), histnorm='probability')])
         fig.update_layout(clickmode='event+select', yaxis_title="probability", title=title)
         return html.Div([
             dcc.Graph(id='objs_hist', figure=fig),
-            html.Div(children='Click on bin to see images'),
+            html.Div(children='Click on bin to see images (may take up to 30 seconds)'),
         ])
 
 
@@ -75,7 +79,7 @@ def displayAreaHist(clickData):
         fig.update_layout(clickmode='event+select', yaxis_title="probability", title=title)
         return html.Div([
             dcc.Graph(id='area_hist', figure=fig),
-            html.Div(children='Click on bin to see images')
+            html.Div(children='Click on bin to see images (may take up to 30 seconds)')
         ])
 
 
@@ -109,7 +113,10 @@ def getHtmlImgs(imgIDs, cat, outlying_anns=None):
             anns = cocoData.loadAnns(annIds)
         cocoData.showAnns(anns)
         decoded_image = fig_to_uri(plt)
-        htmlImgs.append(html.Img(src=decoded_image))
+        htmlImgs.append(html.Img(
+            id={'type': 'output_image', 'index': str(imgID)},
+            src=decoded_image,
+            **{'data-category': cat}))
     return htmlImgs
 
 
@@ -120,7 +127,6 @@ def displayObjImgs(clickData):
         _, data = getObjsPerImg([objCat])
         num_objs = clickData['points'][0]['x']
         imgIDs = data.loc[data['number of objs'] == num_objs]['imgID']
-        print(imgIDs)
         htmlImgs = getHtmlImgs(imgIDs, objCat)
         return html.Div(htmlImgs)
 
@@ -128,15 +134,11 @@ def displayObjImgs(clickData):
 @app.callback(Output('area_imgs', 'children'),
               [Input('area_hist', 'clickData')])
 def displayAreaImgs(clickData):
-    # TODO: debug, images not displaying
     if clickData is not None:
         _, data = getArea([areaCat])
         area = clickData['points'][0]['x']
         area = round_nearest(area)
-        print(area)
-        print(data['proportion of img'])
         imgIDs = data.loc[data['proportion of img'] == area]['imgID']
-        print(imgIDs)
         htmlImgs = getHtmlImgs(imgIDs, areaCat)
         return html.Div(htmlImgs)
 
@@ -148,6 +150,30 @@ def displayAnomalies(value):
     outlier_annIds = (analysis_df['abnormal objects'][analysis_df['category'] == value].tolist())[0]
     htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
     return html.Div(htmlImgs)
+
+
+@app.callback(Output("loading-output-1", "children"),
+              [Input("cat_selection", "value")])
+def input_triggers_spinner(value):
+    time.sleep(1)
+    return
+
+
+@app.callback(Output('anomaly_table', 'children'),
+              [Input({'type': 'output_image', 'index': ALL}, 'n_clicks')],
+              [State({'type': 'output_image', 'index': ALL}, 'data-category'),
+               State({'type': 'output_image', 'index': ALL}, 'id')])
+def displayAnomalyTable(n_clicks, cat, id):
+    global anomaly_table_df
+    print(n_clicks)
+    for i, val in enumerate(n_clicks):
+        print(i, val)
+        file = id[i]['index']
+        if (val is not None) and (not anomaly_table_df['Image filename'].str.contains(file).any()):
+            new_row = {'Category': cat[i], 'Image filename': file}
+            anomaly_table_df = anomaly_table_df.append(new_row, ignore_index=True)
+    table = dbc.Table.from_dataframe(anomaly_table_df, striped=True, bordered=True, hover=True)
+    return table
 
 
 @app.callback(Output('tabs-figures', 'children'),
@@ -195,20 +221,21 @@ def renderTab(tab):
             catIds = cocoData.getCatIds()
             catDict = cocoData.loadCats(catIds)
             catNms = [d['name'] for d in catDict]
-
-            options = []
-            for cat in catNms:
-                dropdown_args = ['label', 'value']
-                cat_tuple = [cat, cat]
-                options.append(dict(zip(dropdown_args, cat_tuple)))
+            options = [{'label': i, 'value': i} for i in catNms]
 
             return html.Div([
                 dcc.Dropdown(
                     id='cat_selection',
                     options=options,
-                    placeholder='Select a category'
+                    value=catNms[0]
                 ),
-                html.Div(id='anomaly_imgs')
+                dbc.Row([
+                    dbc.Col(html.Div(id='anomaly_imgs'), width=8),
+                    dbc.Col([
+                        html.Div(['Flagged anomalies']),
+                        html.Div(id='anomaly_table')], width=4
+                    )
+                ])
             ])
 
     except Exception as e:
@@ -237,7 +264,13 @@ app.layout = html.Div(children=[
         dcc.Tab(label='Proportion of object in image per class', value='tab-4'),
         dcc.Tab(label='Anomaly detection', value='tab-5'),
     ]),
-    html.Div(id='tabs-figures')
+    html.Div(id='tabs-figures'),
+    html.Hr(),
+    dcc.Loading(
+        id="loading-1",
+        type="default",
+        children=html.Div(id="loading-output-1")
+    ),
 ])
 
 if __name__ == '__main__':
