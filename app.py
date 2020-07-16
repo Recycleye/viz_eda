@@ -170,17 +170,14 @@ def input_triggers_spinner(value):
                State({'type': 'output_image', 'index': ALL}, 'id')])
 def displayAnomalyTable(n_clicks, cat, id):
     global anomaly_table_df
-    print(n_clicks)
     for i, val in enumerate(n_clicks):
-        print(i, val)
         file = id[i]['index']
         if (val is not None) and (not anomaly_table_df['Image filename'].str.contains(file).any()):
             new_row = {'Category': cat[i], 'Image filename': file}
             anomaly_table_df = anomaly_table_df.append(new_row, ignore_index=True)
-    # table = dbc.Table.from_dataframe(anomaly_table_df, striped=True, bordered=True, hover=True)
     return html.Div(
         dash_table.DataTable(
-            id='table',
+            id='anomaly_datatable',
             columns=[{"name": i, "id": i} for i in anomaly_table_df.columns],
             data=anomaly_table_df.to_dict('records'),
             row_deletable=True,
@@ -188,6 +185,18 @@ def displayAnomalyTable(n_clicks, cat, id):
             export_headers='display',
         ), style={"margin-right": "100px"}
     )
+
+
+@app.callback(Output('anomaly_datatable', 'children'),
+              [Input('anomaly_datatable', 'data_previous')],
+              [State('anomaly_datatable', 'data')])
+def updateAnomalyTable(prev, curr):
+    if prev is None:
+        dash.exceptions.PreventUpdate()
+    else:
+        removed = list(set([i['Image filename'] for i in prev]) - set([i['Image filename'] for i in curr]))[0]
+        global anomaly_table_df
+        anomaly_table_df = anomaly_table_df[anomaly_table_df['Image filename'] != removed]
 
 
 @app.callback(Output('tabs-figures', 'children'),
