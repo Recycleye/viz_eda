@@ -37,7 +37,7 @@ def parseContents(contents):
         decoded = base64.b64decode(content_string)
         try:
             analysis_df = pd.read_pickle(BytesIO(decoded), compression=None)
-            print("Loaded analysis.pkl!")
+            print("Loaded analysis file!")
         except Exception as e:
             print(e)
             return html.Div(children='Please load a valid COCO-style annotation file.',
@@ -74,6 +74,16 @@ def analyzeButton(n_clicks):
             print(e)
             return html.Div(children='Please load a valid COCO-style annotation file and define a valid folder.',
                             style={"margin-left": "50px", "margin-top": "50px"})
+
+
+# @app.callback([Output("progress", "value"), Output("progress", "children")],
+#               [Input("progress-interval", "n_intervals")])
+# def update_progress(n):
+#     # check progress of some background process, in this example we'll just
+#     # use n_intervals constrained to be in 0-100
+#     progress = min(n % 110, 100)
+#     # only add text after 5% progress to ensure text isn't squashed too much
+#     return progress, f"{progress} %" if progress >= 5 else ""
 
 
 @app.callback(Output('obj_hist_out', 'children'),
@@ -140,6 +150,7 @@ def getHtmlImgs(imgIDs, cat, outlying_anns=None):
             anns = cocoData.loadAnns(annIds)
         cocoData.showAnns(anns)
         decoded_image = fig_to_uri(plt)
+        plt.close()
         htmlImgs.append(html.Img(
             id={'type': 'output_image', 'index': str(imgID)},
             src=decoded_image,
@@ -178,16 +189,27 @@ def displayAnomalies(value):
         outlier_imgIds = (analysis_df['images w/ abnormal objects'][analysis_df['category'] == value].tolist())[0]
         outlier_annIds = (analysis_df['abnormal objects'][analysis_df['category'] == value].tolist())[0]
         htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
-        return html.Div(htmlImgs)
+        return html.Div(children=htmlImgs,
+                        style={"margin-left": "25px", "margin-top": "25px", "overflow": "scroll",
+                               "border": "2px black solid", "box-sizing": "border-box",
+                               "width": "800px", "height": "600px"})
     except Exception as e:
         print(e)
         return html.Div(children='Please load a valid COCO-style annotation file.',
                         style={"margin-left": "25px", "margin-top": "25px"})
 
 
+# def makeTooltip(img_filename):
+#     return dbc.Tooltip(
+#         f"Filename: {img_filename}",
+#         target={'type': 'output_image', 'index': img_filename},
+#         placement="right",
+#     )
+
+
 @app.callback(Output("loading-output-1", "children"),
               [Input("cat_selection", "value")])
-def input_triggers_spinner():
+def input_triggers_spinner(value):
     time.sleep(1)
     return
 
@@ -310,6 +332,12 @@ app.layout = html.Div(children=[
                children=dbc.Button('Upload PKL Analysis File', color="primary", block=True),
                multiple=False, style={"margin-left": "10%", "margin-right": "10%"}),
     html.Hr(),
+    dbc.Input(
+        id="input_data_dir",
+        type="text",
+        placeholder="Relative path to images (i.e. data/val2017)",
+        style={"margin-left": "10%", "margin-right": "10%"}),
+    html.Hr(),
     dbc.Row([
         dbc.Col([
             dcc.Upload(
@@ -319,16 +347,12 @@ app.layout = html.Div(children=[
 
         ], width=4),
         dbc.Col([
-            dbc.Input(
-                id="input_data_dir",
-                type="text",
-                placeholder="Relative path to images (i.e. data/val2017)"),
-        ], width=4),
-        dbc.Col([
             dbc.Button('Analyze', id='analyze_button', color="primary", outline=True, block=True,
                        style={"margin-right": "20%"}),
         ], width=4),
     ]),
+    # dcc.Interval(id="progress-interval", n_intervals=0, interval=500),
+    # dbc.Progress(id="progress"),
     html.Hr(),
 
     html.Div(id='output-ann-data-upload'),
