@@ -4,11 +4,8 @@ import cv2
 import random
 from pycocotools import coco as coco
 from tqdm import tqdm
-from sklearn.cluster import MiniBatchKMeans
 
-from anomaly import getOutliers, getAnomalies
-global cocoData
-cocoData = coco.COCO('output.json')
+from src.anomaly import getOutliers, getAnomalies
 
 
 def getNumObjs(filterClasses):
@@ -34,8 +31,10 @@ def getObjsPerImg(filterClasses):
     for img in imgIds:
         annIds = cocoData.getAnnIds(imgIds=img, catIds=catIds)
         data[len(data)] = [img, len(annIds)]
-    df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'number of objs'])
-    avg = df['number of objs'].sum() / len(df['number of objs'])
+    df = pd.DataFrame.from_dict(
+        data, orient="index", columns=["imgID", "number of objs"]
+    )
+    avg = df["number of objs"].sum() / len(df["number of objs"])
     return avg, df
 
 
@@ -56,11 +55,13 @@ def getArea(filterClasses, annIds=None):
             all_annIds = list(set(all_annIds).intersection(set(annIds)))
         objs = cocoData.loadAnns(ids=all_annIds)
         for obj in objs:
-            proportion = obj['area'] / (imAnn['width'] * imAnn['height'])
+            proportion = obj["area"] / (imAnn["width"] * imAnn["height"])
             proportion = round_nearest(proportion)
-            data[len(data)] = [imgId, obj['id'], proportion]
-    df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'annID', 'proportion of img'])
-    avg = df['proportion of img'].sum() / len(df['proportion of img'])
+            data[len(data)] = [imgId, obj["id"], proportion]
+    df = pd.DataFrame.from_dict(
+        data, orient="index", columns=["imgID", "annID", "proportion of img"]
+    )
+    avg = df["proportion of img"].sum() / len(df["proportion of img"])
     return avg, df
 
 
@@ -77,11 +78,13 @@ def getSegRoughness(filterClasses, annIds=None):
             all_annIds = list(set(all_annIds).intersection(set(annIds)))
         objs = cocoData.loadAnns(ids=all_annIds)
         for obj in objs:
-            num_vertices = len(obj['segmentation'])
-            roughness = num_vertices / obj['area']
-            data[len(data)] = [imgID, obj['id'], roughness]
-    df = pd.DataFrame.from_dict(data, orient='index', columns=['imgID', 'annID', 'roughness of annotation'])
-    avg = df['roughness of annotation'].sum() / len(df['roughness of annotation'])
+            num_vertices = len(obj["segmentation"])
+            roughness = num_vertices / obj["area"]
+            data[len(data)] = [imgID, obj["id"], roughness]
+    df = pd.DataFrame.from_dict(
+        data, orient="index", columns=["imgID", "annID", "roughness of annotation"]
+    )
+    avg = df["roughness of annotation"].sum() / len(df["roughness of annotation"])
     return avg, df
 
 
@@ -94,7 +97,7 @@ def segmentTo2DArray(segmentation):
 
 
 def maskPixels(polygon, img_dict, image_folder):
-    img = cv2.imread('{}/{}'.format(image_folder, img_dict['file_name']))
+    img = cv2.imread("{}/{}".format(image_folder, img_dict["file_name"]))
     mask = np.zeros(img.shape, dtype=np.uint8)
     polygon = np.int32(polygon)
     cv2.fillPoly(mask, [polygon], (255, 255, 255))
@@ -116,12 +119,12 @@ def getSegmentedMasks(filterClasses, image_folder):
     masked_imgs = []
     for img_dict in tqdm(imgs):
         # Load annotations
-        annIds = cocoData.getAnnIds(imgIds=img_dict['id'], catIds=catIds, iscrowd=0)
+        annIds = cocoData.getAnnIds(imgIds=img_dict["id"], catIds=catIds, iscrowd=0)
         anns = cocoData.loadAnns(annIds)
         mask_annIds.extend(annIds)
         # Create masked images
         for ann in anns:
-            polyVerts = segmentTo2DArray(ann['segmentation'])
+            polyVerts = segmentTo2DArray(ann["segmentation"])
             masked_img = maskPixels(polyVerts, img_dict, image_folder)
             valid_pix = np.float32(masked_img.reshape(-1, 3))
             valid_pix = valid_pix[np.all(valid_pix != 0, axis=1), :]
@@ -132,8 +135,14 @@ def getSegmentedMasks(filterClasses, image_folder):
 
 def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
     w_min = min(im.shape[1] for im in im_list)
-    im_list_resize = [cv2.resize(im, (w_min, int(im.shape[0] * w_min / im.shape[1])), interpolation=interpolation)
-                      for im in im_list]
+    im_list_resize = [
+        cv2.resize(
+            im,
+            (w_min, int(im.shape[0] * w_min / im.shape[1])),
+            interpolation=interpolation,
+        )
+        for im in im_list
+    ]
     return np.array(cv2.vconcat(im_list_resize))
 
 
@@ -151,11 +160,11 @@ def getObjColors(image):
 
 def displayDominantColors(counts, palette):
     indices = np.argsort(counts)[::-1]
-    freqs = np.cumsum(np.hstack([[0], counts[indices]/counts.sum()]))
-    rows = np.int_(640*freqs)
+    freqs = np.cumsum(np.hstack([[0], counts[indices] / counts.sum()]))
+    rows = np.int_(640 * freqs)
     dom_patch = np.zeros(shape=(400, 640, 3), dtype=np.uint8)
     for i in range(len(rows) - 1):
-        dom_patch[rows[i]:rows[i + 1], :, :] += np.uint8(palette[indices[i]])
+        dom_patch[rows[i] : rows[i + 1], :, :] += np.uint8(palette[indices[i]])
     return dom_patch
 
 
@@ -194,7 +203,7 @@ def analyzeDataset(annotation_file, image_folder):
     global cocoData
     cocoData = coco.COCO(annotation_file)
     cats = cocoData.loadCats(cocoData.getCatIds())
-    nms = [cat['name'] for cat in cats]
+    nms = [cat["name"] for cat in cats]
 
     data = {}
     cat_num = 1
@@ -226,18 +235,39 @@ def analyzeDataset(annotation_file, image_folder):
         histData = getHistograms(segmented_masks, bins=(3, 3, 3))
 
         print("Getting abnormal objects...")
-        preds_df = getOutliers(histData, areaData, roughnessData, colourData, contamination=0.05)
-        outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df['lof'])
+        preds_df = getOutliers(
+            histData, areaData, roughnessData, colourData, contamination=0.05
+        )
+        outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df["lof"])
         print("Done!")
         print()
-        data[len(data)] = [cat, numObjs, numImgs, avgObjsPerImg, avgArea, avgRoughness,
-                           catColours, outlier_imgIds, outlier_annIds]
+        data[len(data)] = [
+            cat,
+            numObjs,
+            numImgs,
+            avgObjsPerImg,
+            avgArea,
+            avgRoughness,
+            catColours,
+            outlier_imgIds,
+            outlier_annIds,
+        ]
         cat_num += 1
-    df = pd.DataFrame.from_dict(data, orient='index',
-                                columns=['category', 'number of objects', 'number of images',
-                                         'avg number of objects per img', 'avg percentage of img',
-                                         'avg num vertices / area', 'dominant colours', 'images w/ abnormal objects',
-                                         'abnormal objects'])
+    df = pd.DataFrame.from_dict(
+        data,
+        orient="index",
+        columns=[
+            "category",
+            "number of objects",
+            "number of images",
+            "avg number of objects per img",
+            "avg percentage of img",
+            "avg num vertices / area",
+            "dominant colours",
+            "images w/ abnormal objects",
+            "abnormal objects",
+        ],
+    )
     print(df)
     df.to_pickle("analysis.pkl")
     return df

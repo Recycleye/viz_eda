@@ -1,13 +1,9 @@
-import numpy as np
 import pandas as pd
-import cv2
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
-from sklearn.decomposition import PCA, SparsePCA
+from sklearn.decomposition import PCA
 from pycocotools import coco
 
-global cocoData
-cocoData = coco.COCO('output.json')
 
 # def findAnomalies(filterClasses):
 #     print("Loading object masks...")
@@ -19,7 +15,9 @@ cocoData = coco.COCO('output.json')
 #     model.fit(data)
 
 
-def getOutliers(histData, areaData, roughnessData, colourData, nn=20, contamination=0.1, ):
+def getOutliers(
+    histData, areaData, roughnessData, colourData, nn=20, contamination=0.1
+):
     colourData_2d = []
     for palette in colourData:
         c = [j for i in palette for j in i]
@@ -29,22 +27,30 @@ def getOutliers(histData, areaData, roughnessData, colourData, nn=20, contaminat
     pca = PCA(n_components=6)
     histData = pca.fit_transform(histData)
 
-    train = pd.DataFrame(areaData['annID'])
-    train = train.join(pd.DataFrame(histData, columns=['hist1', 'hist2', 'hist3', 'hist4', 'hist5', 'hist6']))
-    train['area'] = areaData['proportion of img']
-    train['roughness'] = roughnessData['roughness of annotation']
-    train = train.join(pd.DataFrame(colourData_2d, columns=['colourX', 'colourY', 'colourZ']))
-    train = train.drop(['annID'], axis=1)
+    train = pd.DataFrame(areaData["annID"])
+    train = train.join(
+        pd.DataFrame(
+            histData, columns=["hist1", "hist2", "hist3", "hist4", "hist5", "hist6"]
+        )
+    )
+    train["area"] = areaData["proportion of img"]
+    train["roughness"] = roughnessData["roughness of annotation"]
+    train = train.join(
+        pd.DataFrame(colourData_2d, columns=["colourX", "colourY", "colourZ"])
+    )
+    train = train.drop(["annID"], axis=1)
 
     print("--Fitting anomaly detection model...")
     lof = LocalOutlierFactor(n_neighbors=nn, contamination=contamination)
     results = pd.DataFrame()
-    results['lof'] = lof.fit_predict(train)
-    results['negative_outlier_factor'] = lof.negative_outlier_factor_
+    results["lof"] = lof.fit_predict(train)
+    results["negative_outlier_factor"] = lof.negative_outlier_factor_
     return results
 
 
 def getAnomalies(filterClasses, preds):
+    from src.app import cocoData
+
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
     annIds = cocoData.getAnnIds(imgIds=imgIds, catIds=catIds, iscrowd=0)
