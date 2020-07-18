@@ -1,6 +1,6 @@
 import base64
 import time
-from src.analysis import analyzeDataset, getObjsPerImg, getArea, coco, round_nearest
+from analysis import analyzeDataset, getObjsPerImg, getArea, coco, round_nearest
 from io import BytesIO
 import dash
 import dash_bootstrap_components as dbc
