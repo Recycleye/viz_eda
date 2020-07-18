@@ -5,7 +5,7 @@ import random
 from pycocotools import coco as coco
 from tqdm import tqdm
 
-from src.anomaly import getOutliers, getAnomalies
+from anomaly import getOutliers, getAnomalies
 
 
 def getNumObjs(filterClasses):
