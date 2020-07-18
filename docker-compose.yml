@@ -1,0 +1,12 @@
+version: "3.7"
+services:
+  vizeda:
+    build:
+      context: .
+    image: vizeda:$VERSION
+    container_name: vizeda
+    ports:
+      - "80:5050"
+    environment:
+      - TARGET=$TARGET
+    restart: unless-stopped
