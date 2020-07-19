@@ -9,4 +9,4 @@ numpy~=1.18.3
 opencv-python
 scikit-learn~=0.21.3
 pycocotools~=2.0
-pre-commit
+shapely

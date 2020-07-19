@@ -2,7 +2,6 @@ import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.decomposition import PCA
-from pycocotools import coco
 
 
 # def findAnomalies(filterClasses):
@@ -48,9 +47,7 @@ def getOutliers(
     return results
 
 
-def getAnomalies(filterClasses, preds):
-    from src.app import cocoData
-
+def getAnomalies(filterClasses, preds, cocoData):
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
     annIds = cocoData.getAnnIds(imgIds=imgIds, catIds=catIds, iscrowd=0)

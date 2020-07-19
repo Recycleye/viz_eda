@@ -1,6 +1,6 @@
 import base64
 import time
-from analysis import analyzeDataset, getObjsPerImg, getArea, coco, round_nearest
+from analysis import analyzeDataset, getObjsPerImg, getProportion, coco, round_nearest
 from io import BytesIO
 import dash
 import dash_bootstrap_components as dbc
@@ -22,30 +22,30 @@ anomaly_table_df = pd.DataFrame(columns=["Category", "Image filename"])
 objCat = ""
 areaCat = ""
 datadir = ""
-upload_content = ""
+annotation_file = ""
 cocoData = None
 
 
 def parseContents(contents):
-    global analysis_df, datadir, upload_content, cocoData
+    global analysis_df, datadir, annotation_file, cocoData
     content_type, content_string = contents.split(",")
     if content_type == "data:application/json;base64":
         decoded = base64.b64decode(content_string).decode("UTF-8")
         with open("output.json", "w") as file:
             file.write(decoded)
-        upload_content = "output.json"
-        cocoData = coco.COCO(upload_content)
+        annotation_file = "output.json"
+        cocoData = coco.COCO(annotation_file)
     elif content_type == "data:application/octet-stream;base64":
         decoded = base64.b64decode(content_string)
-        try:
-            analysis_df = pd.read_pickle(BytesIO(decoded), compression=None)
-            print("Loaded analysis file!")
-        except Exception as e:
-            print(e)
-            return html.Div(
-                children="Please load a valid COCO-style annotation file.",
-                style={"margin-left": "50px", "margin-top": "50px"},
-            )
+        # try:
+        analysis_df = pd.read_pickle(BytesIO(decoded), compression=None)
+        print("Loaded analysis file!")
+        # except Exception as e:
+        #     print(e)
+        #     return html.Div(
+        #         children="Please load a valid COCO-style annotation file.",
+        #         style={"margin-left": "50px", "margin-top": "50px"},
+        #     )
 
 
 @app.callback(
@@ -76,16 +76,16 @@ def dataDirInput(value):
 
 @app.callback(Output("output1", "children"), [Input("analyze_button", "n_clicks")])
 def analyzeButton(n_clicks):
-    global datadir, upload_content, analysis_df
-    if n_clicks is not None and datadir != "" and upload_content != "":
-        try:
-            analysis_df = analyzeDataset(upload_content, datadir)
-        except Exception as e:
-            print(e)
-            return html.Div(
-                children="Please load a valid COCO-style annotation file and define a valid folder.",
-                style={"margin-left": "50px", "margin-top": "50px"},
-            )
+    global datadir, annotation_file, analysis_df
+    if n_clicks is not None and datadir != "" and annotation_file != "":
+        # try:
+        analysis_df = analyzeDataset(annotation_file, datadir)
+        # except Exception as e:
+        #     print(e)
+        #     return html.Div(
+        #         children="Please load a valid COCO-style annotation file and define a valid folder.",
+        #         style={"margin-left": "50px", "margin-top": "50px"},
+        #     )
 
 
 # @app.callback([Output("progress", "value"), Output("progress", "children")],
@@ -105,7 +105,7 @@ def displayObjHist(clickData):
         global objCat
         objCat = cat
         title = "Number of " + cat + "s in an image w/ " + cat + "s"
-        _, data = getObjsPerImg([cat])
+        _, data = getObjsPerImg([cat], cocoData)
         fig = go.Figure(
             data=[
                 go.Histogram(
@@ -128,12 +128,13 @@ def displayObjHist(clickData):
 
 @app.callback(Output("area_hist_out", "children"), [Input("cat_areas", "clickData")])
 def displayAreaHist(clickData):
+    # TODO: debug histogram for recycle data
     if clickData is not None:
         cat = clickData["points"][0]["x"]
         global areaCat
         areaCat = cat
         title = "Percentage area of a(n) " + cat + " in an image"
-        _, data = getArea([cat])
+        _, data = getProportion([cat], cocoData)
         fig = go.Figure(
             data=[
                 go.Histogram(
@@ -174,8 +175,9 @@ def getHtmlImgs(imgIDs, cat, outlying_anns=None):
     catIds = cocoData.getCatIds(catNms=[cat])
     print("Loading images...")
     for imgID in tqdm(set(imgIDs)):
+        imAnn = cocoData.loadImgs(ids=imgID)[0]
         image_filename = (
-            datadir + "/" + str(imgID).zfill(12) + ".jpg"
+            datadir + "/" + imAnn["file_name"]
         )  # replace with your own image
         I = io.imread(image_filename) / 255.0
         plt.imshow(I)
@@ -203,7 +205,7 @@ def getHtmlImgs(imgIDs, cat, outlying_anns=None):
 @app.callback(Output("obj_imgs", "children"), [Input("objs_hist", "clickData")])
 def displayObjImgs(clickData):
     if clickData is not None:
-        _, data = getObjsPerImg([objCat])
+        _, data = getObjsPerImg([objCat], cocoData)
         num_objs = clickData["points"][0]["x"]
         imgIDs = data.loc[data["number of objs"] == num_objs]["imgID"]
         htmlImgs = getHtmlImgs(imgIDs, objCat)
@@ -213,7 +215,7 @@ def displayObjImgs(clickData):
 @app.callback(Output("area_imgs", "children"), [Input("area_hist", "clickData")])
 def displayAreaImgs(clickData):
     if clickData is not None:
-        _, data = getArea([areaCat])
+        _, data = getProportion([areaCat], cocoData)
         area = clickData["points"][0]["x"]
         area = round_nearest(area)
         imgIDs = data.loc[data["proportion of img"] == area]["imgID"]
@@ -224,34 +226,34 @@ def displayAreaImgs(clickData):
 @app.callback(Output("anomaly_imgs", "children"), [Input("cat_selection", "value")])
 def displayAnomalies(value):
     global analysis_df
-    try:
-        outlier_imgIds = (
-            analysis_df["images w/ abnormal objects"][
-                analysis_df["category"] == value
-            ].tolist()
-        )[0]
-        outlier_annIds = (
-            analysis_df["abnormal objects"][analysis_df["category"] == value].tolist()
-        )[0]
-        htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
-        return html.Div(
-            children=htmlImgs,
-            style={
-                "margin-left": "25px",
-                "margin-top": "25px",
-                "overflow": "scroll",
-                "border": "2px black solid",
-                "box-sizing": "border-box",
-                "width": "600px",
-                "height": "600px",
-            },
-        )
-    except Exception as e:
-        print(e)
-        return html.Div(
-            children="Please load a valid COCO-style annotation file.",
-            style={"margin-left": "25px", "margin-top": "25px"},
-        )
+    # try:
+    outlier_imgIds = (
+        analysis_df["images w/ abnormal objects"][
+            analysis_df["category"] == value
+        ].tolist()
+    )[0]
+    outlier_annIds = (
+        analysis_df["abnormal objects"][analysis_df["category"] == value].tolist()
+    )[0]
+    htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
+    return html.Div(
+        children=htmlImgs,
+        style={
+            "margin-left": "25px",
+            "margin-top": "25px",
+            "overflow": "scroll",
+            "border": "2px black solid",
+            "box-sizing": "border-box",
+            "width": "600px",
+            "height": "600px",
+        },
+    )
+    # except Exception as e:
+    #     print(e)
+    #     return html.Div(
+    #         children="Please load a valid COCO-style annotation file.",
+    #         style={"margin-left": "25px", "margin-top": "25px"},
+    #     )
 
 
 # def makeTooltip(img_filename):
@@ -454,9 +456,9 @@ app.layout = html.Div(
         ),
         html.Hr(),
         dcc.Upload(
-            id="upload-analysis-data",
+            id="upload-annotation-data",
             children=dbc.Button(
-                "Upload PKL Analysis File", color="primary", block=True
+                "Upload JSON Annotation File", color="primary", block=True
             ),
             multiple=False,
             style={"margin-left": "10%", "margin-right": "10%"},
@@ -465,7 +467,7 @@ app.layout = html.Div(
         dbc.Input(
             id="input_data_dir",
             type="text",
-            placeholder="Relative path to images (i.e. data/val2017)",
+            placeholder="Path to images (i.e. C:/Users/me/project/data/val2017)",
             style={"margin-left": "10%", "margin-right": "10%"},
         ),
         html.Hr(),
@@ -474,11 +476,12 @@ app.layout = html.Div(
                 dbc.Col(
                     [
                         dcc.Upload(
-                            id="upload-annotation-data",
+                            id="upload-analysis-data",
                             children=dbc.Button(
-                                "Upload JSON Annotation File",
+                                "Load PKL Analysis File",
                                 color="primary",
                                 block=True,
+                                outline=True,
                             ),
                             multiple=False,
                             style={"margin-left": "20%"},
@@ -528,5 +531,13 @@ app.layout = html.Div(
 )
 
 if __name__ == "__main__":
-    app.run_server(host="0.0.0.0", port=8050, debug=True)
-    # analyzeDataset("data/annotations/instances_val2017.json", "data/val2017")
+    # Run on docker
+    # app.run_server(host='0.0.0.0', port=8050, debug=True)
+
+    # Run locally
+    app.run_server(port=8050, debug=True)
+
+    # Only do analysis
+    # annotation_file = ""
+    # datadir = ""
+    # analyzeDataset(annotation_file, datadir)

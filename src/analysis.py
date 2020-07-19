@@ -4,25 +4,24 @@ import cv2
 import random
 from pycocotools import coco as coco
 from tqdm import tqdm
-
 from anomaly import getOutliers, getAnomalies
 
 
-def getNumObjs(filterClasses):
+def getNumObjs(filterClasses, cocoData):
     # Returns number of objects of a given class
     catIds = cocoData.getCatIds(catNms=filterClasses)
     annIds = cocoData.getAnnIds(catIds=catIds)
     return len(annIds)
 
 
-def getNumImgs(filterClasses):
+def getNumImgs(filterClasses, cocoData):
     # Returns number of imgs with an object of a given class
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
     return len(imgIds)
 
 
-def getObjsPerImg(filterClasses):
+def getObjsPerImg(filterClasses, cocoData):
     # Returns average number of objects of a given class in an image
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
@@ -38,11 +37,11 @@ def getObjsPerImg(filterClasses):
     return avg, df
 
 
-def round_nearest(x, a=0.05):
+def round_nearest(x, a=0.005):
     return round(x / a) * a
 
 
-def getArea(filterClasses, annIds=None):
+def getProportion(filterClasses, cocoData, annIds=None):
     # Returns average proportion an object of a given class takes up in the image
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
@@ -55,8 +54,15 @@ def getArea(filterClasses, annIds=None):
             all_annIds = list(set(all_annIds).intersection(set(annIds)))
         objs = cocoData.loadAnns(ids=all_annIds)
         for obj in objs:
-            proportion = obj["area"] / (imAnn["width"] * imAnn["height"])
+            if "area" in obj:
+                proportion = obj["area"] / (imAnn["width"] * imAnn["height"])
+            else:
+                polyVerts = segmentTo2DArray(obj["segmentation"])
+                area = getArea(polyVerts)
+                proportion = area / (imAnn["width"] * imAnn["height"])
+                print(proportion)
             proportion = round_nearest(proportion)
+            print(proportion)
             data[len(data)] = [imgId, obj["id"], proportion]
     df = pd.DataFrame.from_dict(
         data, orient="index", columns=["imgID", "annID", "proportion of img"]
@@ -65,7 +71,7 @@ def getArea(filterClasses, annIds=None):
     return avg, df
 
 
-def getSegRoughness(filterClasses, annIds=None):
+def getSegRoughness(filterClasses, cocoData, annIds=None):
     # Returns average roughness an object of a given class
     # "Roughness" = number of segmentation vertices / area of obj
     catIds = cocoData.getCatIds(catNms=filterClasses)
@@ -79,13 +85,24 @@ def getSegRoughness(filterClasses, annIds=None):
         objs = cocoData.loadAnns(ids=all_annIds)
         for obj in objs:
             num_vertices = len(obj["segmentation"])
-            roughness = num_vertices / obj["area"]
+            if "area" in obj:
+                roughness = num_vertices / obj["area"]
+            else:
+                polyVerts = segmentTo2DArray(obj["segmentation"])
+                area = getArea(polyVerts)
+                roughness = num_vertices / area
             data[len(data)] = [imgID, obj["id"], roughness]
     df = pd.DataFrame.from_dict(
         data, orient="index", columns=["imgID", "annID", "roughness of annotation"]
     )
     avg = df["roughness of annotation"].sum() / len(df["roughness of annotation"])
     return avg, df
+
+
+def getArea(polygon):
+    Xs = np.array([x[0] for x in polygon])
+    Ys = np.array([y[1] for y in polygon])
+    return 0.5 * np.abs(np.dot(Xs, np.roll(Ys, 1)) - np.dot(Ys, np.roll(Xs, 1)))
 
 
 def segmentTo2DArray(segmentation):
@@ -106,7 +123,7 @@ def maskPixels(polygon, img_dict, image_folder):
     return masked_image
 
 
-def getSegmentedMasks(filterClasses, image_folder):
+def getSegmentedMasks(filterClasses, image_folder, cocoData):
     # Returns single object annotation with black background
     catIds = cocoData.getCatIds(catNms=filterClasses)
     imgIds = cocoData.getImgIds(catIds=catIds)
@@ -200,7 +217,6 @@ def getHistograms(images, bins):
 
 
 def analyzeDataset(annotation_file, image_folder):
-    global cocoData
     cocoData = coco.COCO(annotation_file)
     cats = cocoData.loadCats(cocoData.getCatIds())
     nms = [cat["name"] for cat in cats]
@@ -211,22 +227,24 @@ def analyzeDataset(annotation_file, image_folder):
         print(cat + ": " + str(cat_num) + "/" + str(len(nms)))
 
         print("Loading object masks...")
-        segmented_masks, mask_annIds = getSegmentedMasks([cat], image_folder)
+        segmented_masks, mask_annIds = getSegmentedMasks([cat], image_folder, cocoData)
 
         print("Getting number of objects...")
-        numObjs = getNumObjs([cat])
+        numObjs = getNumObjs([cat], cocoData)
 
         print("Getting number of images...")
-        numImgs = getNumImgs([cat])
+        numImgs = getNumImgs([cat], cocoData)
 
         print("Getting average number of objects per images...")
-        avgObjsPerImg, _ = getObjsPerImg([cat])
+        avgObjsPerImg, _ = getObjsPerImg([cat], cocoData)
 
         print("Getting average area...")
-        avgArea, areaData = getArea([cat], annIds=mask_annIds)
+        avgArea, areaData = getProportion([cat], cocoData, annIds=mask_annIds)
 
         print("Getting average roughness of segmentation...")
-        avgRoughness, roughnessData = getSegRoughness([cat], annIds=mask_annIds)
+        avgRoughness, roughnessData = getSegRoughness(
+            [cat], cocoData, annIds=mask_annIds
+        )
 
         print("Getting dominant colours...")
         catColours, colourData = getCatColors(segmented_masks)
@@ -238,7 +256,7 @@ def analyzeDataset(annotation_file, image_folder):
         preds_df = getOutliers(
             histData, areaData, roughnessData, colourData, contamination=0.05
         )
-        outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df["lof"])
+        outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df["lof"], cocoData)
         print("Done!")
         print()
         data[len(data)] = [
