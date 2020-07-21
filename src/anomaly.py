@@ -5,20 +5,20 @@ from sklearn.decomposition import PCA
 
 
 def getOutliers(histData, areaData, roughnessData, nn=20, contamination=0.1):
+    train = pd.DataFrame(areaData["annID"])
+    train["area"] = areaData["proportion of img"]
+    train["roughness"] = roughnessData["roughness of annotation"]
+
     histData_2d = []
     for obj_hist in histData:
         pca = PCA(n_components=1)
         features = pca.fit_transform(obj_hist)
         histData_2d.append([features[0][0], features[1][0], features[2][0]])
-
-    train = pd.DataFrame(areaData["annID"])
-    train["area"] = areaData["proportion of img"]
-    train["roughness"] = roughnessData["roughness of annotation"]
     train = train.join(
         pd.DataFrame(histData_2d, columns=["hist_b", "hist_g", "hist_r"])
     )
-    train = train.drop(["annID"], axis=1)
 
+    train = train.drop(["annID"], axis=1)
     lof = LocalOutlierFactor(n_neighbors=nn, contamination=contamination)
     results = pd.DataFrame()
     results["lof"] = lof.fit_predict(train)

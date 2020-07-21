@@ -37,10 +37,6 @@ def getObjsPerImg(filterClasses, cocoData):
     return avg, df
 
 
-def round_nearest(x, a=0.005):
-    return round(x / a) * a
-
-
 def getProportion(filterClasses, cocoData, annIds=None):
     # Returns average proportion an object of a given class takes up in the image
     catIds = cocoData.getCatIds(catNms=filterClasses)
@@ -60,7 +56,6 @@ def getProportion(filterClasses, cocoData, annIds=None):
                 polyVerts = segmentTo2DArray(obj["segmentation"])
                 area = getArea(polyVerts)
                 proportion = area / (imAnn["width"] * imAnn["height"])
-            proportion = round_nearest(proportion)
             data[len(data)] = [imgId, obj["id"], proportion]
     df = pd.DataFrame.from_dict(
         data, orient="index", columns=["imgID", "annID", "proportion of img"]

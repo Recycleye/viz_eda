@@ -1,6 +1,6 @@
 import base64
 import time
-from analysis import analyzeDataset, getObjsPerImg, getProportion, coco, round_nearest
+from analysis import analyzeDataset, getObjsPerImg, getProportion, coco
 from io import BytesIO
 import dash
 import dash_bootstrap_components as dbc
@@ -20,7 +20,7 @@ external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 analysis_df = pd.DataFrame()
 anomaly_table_df = pd.DataFrame(columns=["Category", "Image filename"])
-profile = ProfileReport()
+profile = ""
 objCat = ""
 areaCat = ""
 datadir = ""
@@ -39,16 +39,16 @@ def parseContents(contents):
         cocoData = coco.COCO(annotation_file)
     elif content_type == "data:application/octet-stream;base64":
         decoded = base64.b64decode(content_string)
-        # try:
-        analysis_df = pd.read_pickle(BytesIO(decoded), compression=None)
-        print("Loaded analysis file!")
-        profile = ProfileReport(analysis_df, title="Dataset").to_html()
-        # except Exception as e:
-        #     print(e)
-        #     return html.Div(
-        #         children="Please load a valid COCO-style annotation file.",
-        #         style={"margin-left": "50px", "margin-top": "50px"},
-        #     )
+        try:
+            analysis_df = pd.read_pickle(BytesIO(decoded), compression=None)
+            print("Loaded analysis file!")
+            profile = ProfileReport(analysis_df, title="Dataset").to_html()
+        except Exception as e:
+            print(e)
+            return html.Div(
+                children="Please load a valid COCO-style annotation file.",
+                style={"margin-left": "50px", "margin-top": "50px"},
+            )
 
 
 @app.callback(
@@ -81,15 +81,15 @@ def dataDirInput(value):
 def analyzeButton(n_clicks):
     global datadir, annotation_file, analysis_df, profile
     if n_clicks is not None and datadir != "" and annotation_file != "":
-        # try:
-        analysis_df = analyzeDataset(annotation_file, datadir)
-        profile = ProfileReport(analysis_df, title="Dataset").to_html()
-        # except Exception as e:
-        #     print(e)
-        #     return html.Div(
-        #         children="Please load a valid COCO-style annotation file and define a valid folder.",
-        #         style={"margin-left": "50px", "margin-top": "50px"},
-        #     )
+        try:
+            analysis_df = analyzeDataset(annotation_file, datadir)
+            profile = ProfileReport(analysis_df, title="Dataset").to_html()
+        except Exception as e:
+            print(e)
+            return html.Div(
+                children="Please load a valid COCO-style annotation file and define a valid folder.",
+                style={"margin-left": "50px", "margin-top": "50px"},
+            )
 
 
 @app.callback(Output("obj_hist_out", "children"), [Input("objs_per_img", "clickData")])
@@ -122,7 +122,6 @@ def displayObjHist(clickData):
 
 @app.callback(Output("area_hist_out", "children"), [Input("cat_areas", "clickData")])
 def displayAreaHist(clickData):
-    # TODO: debug histogram for recycle data
     if clickData is not None:
         cat = clickData["points"][0]["x"]
         global areaCat
@@ -210,9 +209,12 @@ def displayObjImgs(clickData):
 def displayAreaImgs(clickData):
     if clickData is not None:
         _, data = getProportion([areaCat], cocoData)
-        area = clickData["points"][0]["x"]
-        area = round_nearest(area)
-        imgIDs = data.loc[data["proportion of img"] == area]["imgID"]
+        data_df = pd.DataFrame(data)
+        print(clickData)
+        print(data_df)
+        pointnums = clickData["points"][0]["pointNumbers"]
+        imgIDs = data_df[data_df.index.isin(pointnums)]["imgID"]
+        print(len(imgIDs))
         htmlImgs = getHtmlImgs(imgIDs, areaCat)
         return html.Div(htmlImgs)
 
@@ -220,34 +222,34 @@ def displayAreaImgs(clickData):
 @app.callback(Output("anomaly_imgs", "children"), [Input("cat_selection", "value")])
 def displayAnomalies(value):
     global analysis_df
-    # try:
-    outlier_imgIds = (
-        analysis_df["images w/ abnormal objects"][
-            analysis_df["category"] == value
-        ].tolist()
-    )[0]
-    outlier_annIds = (
-        analysis_df["abnormal objects"][analysis_df["category"] == value].tolist()
-    )[0]
-    htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
-    return html.Div(
-        children=htmlImgs,
-        style={
-            "margin-left": "25px",
-            "margin-top": "25px",
-            "overflow": "scroll",
-            "border": "2px black solid",
-            "box-sizing": "border-box",
-            "width": "600px",
-            "height": "600px",
-        },
-    )
-    # except Exception as e:
-    #     print(e)
-    #     return html.Div(
-    #         children="Please load a valid COCO-style annotation file.",
-    #         style={"margin-left": "25px", "margin-top": "25px"},
-    #     )
+    try:
+        outlier_imgIds = (
+            analysis_df["images w/ abnormal objects"][
+                analysis_df["category"] == value
+            ].tolist()
+        )[0]
+        outlier_annIds = (
+            analysis_df["abnormal objects"][analysis_df["category"] == value].tolist()
+        )[0]
+        htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
+        return html.Div(
+            children=htmlImgs,
+            style={
+                "margin-left": "25px",
+                "margin-top": "25px",
+                "overflow": "scroll",
+                "border": "2px black solid",
+                "box-sizing": "border-box",
+                "width": "600px",
+                "height": "600px",
+            },
+        )
+    except Exception as e:
+        print(e)
+        return html.Div(
+            children="Please load a valid COCO-style annotation file.",
+            style={"margin-left": "25px", "margin-top": "25px"},
+        )
 
 
 @app.callback(Output("loading-output-1", "children"), [Input("cat_selection", "value")])
@@ -309,15 +311,22 @@ def updateAnomalyTable(prev, curr):
 def renderTab(tab):
     try:
         if tab == "tab-0":
-            return html.Div(
-                [html.Iframe(srcDoc=profile, height=1000, width=1500)],
-                style={
-                    "width": "100%",
-                    "display": "flex",
-                    "align-items": "center",
-                    "justify-content": "center",
-                },
-            )
+            try:
+                return html.Div(
+                    [html.Iframe(srcDoc=profile, height=1000, width=1500)],
+                    style={
+                        "width": "100%",
+                        "display": "flex",
+                        "align-items": "center",
+                        "justify-content": "center",
+                    },
+                )
+            except Exception as e:
+                print(e)
+                return html.Div(
+                    children="Please load a valid COCO-style annotation file.",
+                    style={"margin-left": "25px", "margin-top": "25px"},
+                )
 
         elif tab == "tab-1":
             fig = px.bar(
@@ -501,8 +510,6 @@ app.layout = html.Div(
                 ),
             ]
         ),
-        # dcc.Interval(id="progress-interval", n_intervals=0, interval=500),
-        # dbc.Progress(id="progress"),
         html.Hr(),
         html.Div(id="output-ann-data-upload"),
         html.Div(id="output-analysis-data-upload"),
@@ -512,7 +519,7 @@ app.layout = html.Div(
             id="tabs",
             value="tab-0",
             children=[
-                dcc.Tab(label="Analysis Profile", value="tab-0"),
+                dcc.Tab(label="Overview", value="tab-0"),
                 dcc.Tab(label="Objects per class", value="tab-1"),
                 dcc.Tab(label="Images per class", value="tab-2"),
                 dcc.Tab(label="Objects per image", value="tab-3"),
