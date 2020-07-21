@@ -60,9 +60,7 @@ def getProportion(filterClasses, cocoData, annIds=None):
                 polyVerts = segmentTo2DArray(obj["segmentation"])
                 area = getArea(polyVerts)
                 proportion = area / (imAnn["width"] * imAnn["height"])
-                print(proportion)
             proportion = round_nearest(proportion)
-            print(proportion)
             data[len(data)] = [imgId, obj["id"], proportion]
     df = pd.DataFrame.from_dict(
         data, orient="index", columns=["imgID", "annID", "proportion of img"]
@@ -90,7 +88,7 @@ def getSegRoughness(filterClasses, cocoData, annIds=None):
             else:
                 polyVerts = segmentTo2DArray(obj["segmentation"])
                 area = getArea(polyVerts)
-                roughness = num_vertices / area
+                roughness = (num_vertices * 1000) / area
             data[len(data)] = [imgID, obj["id"], roughness]
     df = pd.DataFrame.from_dict(
         data, orient="index", columns=["imgID", "annID", "roughness of annotation"]
@@ -115,12 +113,10 @@ def segmentTo2DArray(segmentation):
 
 def maskPixels(polygon, img_dict, image_folder):
     img = cv2.imread("{}/{}".format(image_folder, img_dict["file_name"]))
-    mask = np.zeros(img.shape, dtype=np.uint8)
+    mask = np.zeros(img.shape[:2], dtype=np.uint8)
     polygon = np.int32(polygon)
-    cv2.fillPoly(mask, [polygon], (255, 255, 255))
-    masked_image = cv2.bitwise_and(img, mask)
-    masked_image = cv2.cvtColor(masked_image, cv2.COLOR_BGR2RGB)
-    return masked_image
+    mask = cv2.fillPoly(mask, pts=[polygon], color=255)
+    return img, mask
 
 
 def getSegmentedMasks(filterClasses, image_folder, cocoData):
@@ -133,7 +129,8 @@ def getSegmentedMasks(filterClasses, image_folder, cocoData):
     imgs = cocoData.loadImgs(imgIds)
 
     mask_annIds = []
-    masked_imgs = []
+    masks = []
+    loaded_imgs = []
     for img_dict in tqdm(imgs):
         # Load annotations
         annIds = cocoData.getAnnIds(imgIds=img_dict["id"], catIds=catIds, iscrowd=0)
@@ -142,77 +139,42 @@ def getSegmentedMasks(filterClasses, image_folder, cocoData):
         # Create masked images
         for ann in anns:
             polyVerts = segmentTo2DArray(ann["segmentation"])
-            masked_img = maskPixels(polyVerts, img_dict, image_folder)
-            valid_pix = np.float32(masked_img.reshape(-1, 3))
-            valid_pix = valid_pix[np.all(valid_pix != 0, axis=1), :]
-            if valid_pix.shape[0] > 0:
-                masked_imgs.append(masked_img)
-    return masked_imgs, mask_annIds
+            img, mask = maskPixels(polyVerts, img_dict, image_folder)
+            masks.append(mask)
+            loaded_imgs.append(img)
+    return loaded_imgs, masks, mask_annIds
 
 
-def stichImages(im_list, interpolation=cv2.INTER_CUBIC):
-    w_min = min(im.shape[1] for im in im_list)
-    im_list_resize = [
-        cv2.resize(
-            im,
-            (w_min, int(im.shape[0] * w_min / im.shape[1])),
-            interpolation=interpolation,
-        )
-        for im in im_list
-    ]
-    return np.array(cv2.vconcat(im_list_resize))
-
-
-def getObjColors(image):
-    n_colors = 4
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.1)
-    flags = cv2.KMEANS_RANDOM_CENTERS
-
-    pixels = np.float32(image.reshape(-1, 3))
-    pixels = pixels[np.all(pixels != 0, axis=1), :]
-    _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
-    _, counts = np.unique(labels, return_counts=True)
-    return counts, palette
-
-
-def displayDominantColors(counts, palette):
-    indices = np.argsort(counts)[::-1]
-    freqs = np.cumsum(np.hstack([[0], counts[indices] / counts.sum()]))
-    rows = np.int_(640 * freqs)
-    dom_patch = np.zeros(shape=(400, 640, 3), dtype=np.uint8)
-    for i in range(len(rows) - 1):
-        dom_patch[rows[i] : rows[i + 1], :, :] += np.uint8(palette[indices[i]])
-    return dom_patch
-
-
-def getCatColors(segmented_masks):
-    print("--Processing object colours")
-    colourData = []
-    for mask in tqdm(segmented_masks):
-        _, palette = getObjColors(mask)
-        colourData.append(palette)
-    print("--Stitching objects...")
-    image = stichImages(segmented_masks)
-    print("--Processing category colours...")
-    counts, palette = getObjColors(image)
-    # color_patch = displayDominantColors(counts, palette)
-    return palette, colourData
-
-
-def imageHist(image, bins=(4, 6, 3)):
-    # compute a 3D color histogram over the image and normalize it
-    hist = cv2.calcHist(image, [0, 1, 2], None, bins, [0, 180, 0, 256, 0, 256])
-    hist = cv2.normalize(hist, hist).flatten()
-    return hist
-
-
-def getHistograms(images, bins):
+def getHistograms(images, masks):
     data = []
-    for image in tqdm(images):
+    for image, mask in tqdm(zip(images, masks)):
         img_float32 = np.float32(image)
-        image = cv2.cvtColor(img_float32, cv2.COLOR_RGB2HSV)
-        features = imageHist(image, bins)
-        data.append(features)
+        bgr_planes = cv2.split(img_float32)
+        histSize = 50
+        histRange = (0, 256)  # the upper boundary is exclusive
+        accumulate = False
+
+        b_hist = cv2.calcHist(
+            bgr_planes, [0], mask, [histSize], histRange, accumulate=accumulate
+        )
+        g_hist = cv2.calcHist(
+            bgr_planes, [1], mask, [histSize], histRange, accumulate=accumulate
+        )
+        r_hist = cv2.calcHist(
+            bgr_planes, [2], mask, [histSize], histRange, accumulate=accumulate
+        )
+
+        hist_h = 400
+        b_features = cv2.normalize(
+            b_hist, b_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX
+        ).flatten()
+        g_features = cv2.normalize(
+            g_hist, g_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX
+        ).flatten()
+        r_features = cv2.normalize(
+            r_hist, r_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX
+        ).flatten()
+        data.append([b_features, g_features, r_features])
     return np.array(data)
 
 
@@ -227,7 +189,7 @@ def analyzeDataset(annotation_file, image_folder):
         print(cat + ": " + str(cat_num) + "/" + str(len(nms)))
 
         print("Loading object masks...")
-        segmented_masks, mask_annIds = getSegmentedMasks([cat], image_folder, cocoData)
+        imgs, masks, mask_annIds = getSegmentedMasks([cat], image_folder, cocoData)
 
         print("Getting number of objects...")
         numObjs = getNumObjs([cat], cocoData)
@@ -246,16 +208,11 @@ def analyzeDataset(annotation_file, image_folder):
             [cat], cocoData, annIds=mask_annIds
         )
 
-        print("Getting dominant colours...")
-        catColours, colourData = getCatColors(segmented_masks)
-
         print("Getting object histograms...")
-        histData = getHistograms(segmented_masks, bins=(3, 3, 3))
+        histData = getHistograms(imgs, masks)
 
         print("Getting abnormal objects...")
-        preds_df = getOutliers(
-            histData, areaData, roughnessData, colourData, contamination=0.05
-        )
+        preds_df = getOutliers(histData, areaData, roughnessData, contamination=0.05)
         outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df["lof"], cocoData)
         print("Done!")
         print()
@@ -266,7 +223,6 @@ def analyzeDataset(annotation_file, image_folder):
             avgObjsPerImg,
             avgArea,
             avgRoughness,
-            catColours,
             outlier_imgIds,
             outlier_annIds,
         ]
@@ -281,7 +237,6 @@ def analyzeDataset(annotation_file, image_folder):
             "avg number of objects per img",
             "avg percentage of img",
             "avg num vertices / area",
-            "dominant colours",
             "images w/ abnormal objects",
             "abnormal objects",
         ],

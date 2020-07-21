@@ -22,13 +22,13 @@ breakdown of the images per category.
 
 ### Objects per image
 The first chart displays the average number of objects of a given class contained in image. For example, given images
-with one or more cars, the chart displays the average number of cars in those images. To see the distribution of the 
-number of objects per image, click on a bin of your choice. To see the images that contain n objects of a given 
+with one or more cars, the chart displays the average number of cars in those images. To see the distribution of the
+number of objects per image, click on a bin of your choice. To see the images that contain n objects of a given
 category, on the probability histogram, click on a bin of your choice.
 
 ### Proportion of object in image
 The first chart displays the average proportion an object of a certain category takes up in an image. To see the
-distribution of proportions an object takes up in image, click on a bin of your choice. To see the images that contain 
+distribution of proportions an object takes up in image, click on a bin of your choice. To see the images that contain
 objects of a given category taking up x% of a image, click on a bin of your choice.
 
 ## Anomaly detection
