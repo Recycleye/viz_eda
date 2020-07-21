@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from pandas_profiling import ProfileReport
 from dash.dependencies import Input, Output, State, ALL
 from skimage import io
 from tqdm import tqdm
@@ -19,6 +20,7 @@ external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 analysis_df = pd.DataFrame()
 anomaly_table_df = pd.DataFrame(columns=["Category", "Image filename"])
+profile = ProfileReport()
 objCat = ""
 areaCat = ""
 datadir = ""
@@ -27,7 +29,7 @@ cocoData = None
 
 
 def parseContents(contents):
-    global analysis_df, datadir, annotation_file, cocoData
+    global analysis_df, datadir, annotation_file, cocoData, profile
     content_type, content_string = contents.split(",")
     if content_type == "data:application/json;base64":
         decoded = base64.b64decode(content_string).decode("UTF-8")
@@ -40,6 +42,7 @@ def parseContents(contents):
         # try:
         analysis_df = pd.read_pickle(BytesIO(decoded), compression=None)
         print("Loaded analysis file!")
+        profile = ProfileReport(analysis_df, title="Dataset").to_html()
         # except Exception as e:
         #     print(e)
         #     return html.Div(
@@ -76,26 +79,17 @@ def dataDirInput(value):
 
 @app.callback(Output("output1", "children"), [Input("analyze_button", "n_clicks")])
 def analyzeButton(n_clicks):
-    global datadir, annotation_file, analysis_df
+    global datadir, annotation_file, analysis_df, profile
     if n_clicks is not None and datadir != "" and annotation_file != "":
         # try:
         analysis_df = analyzeDataset(annotation_file, datadir)
+        profile = ProfileReport(analysis_df, title="Dataset").to_html()
         # except Exception as e:
         #     print(e)
         #     return html.Div(
         #         children="Please load a valid COCO-style annotation file and define a valid folder.",
         #         style={"margin-left": "50px", "margin-top": "50px"},
         #     )
-
-
-# @app.callback([Output("progress", "value"), Output("progress", "children")],
-#               [Input("progress-interval", "n_intervals")])
-# def update_progress(n):
-#     # check progress of some background process, in this example we'll just
-#     # use n_intervals constrained to be in 0-100
-#     progress = min(n % 110, 100)
-#     # only add text after 5% progress to ensure text isn't squashed too much
-#     return progress, f"{progress} %" if progress >= 5 else ""
 
 
 @app.callback(Output("obj_hist_out", "children"), [Input("objs_per_img", "clickData")])
@@ -256,14 +250,6 @@ def displayAnomalies(value):
     #     )
 
 
-# def makeTooltip(img_filename):
-#     return dbc.Tooltip(
-#         f"Filename: {img_filename}",
-#         target={'type': 'output_image', 'index': img_filename},
-#         placement="right",
-#     )
-
-
 @app.callback(Output("loading-output-1", "children"), [Input("cat_selection", "value")])
 def input_triggers_spinner(value):
     time.sleep(1)
@@ -322,7 +308,18 @@ def updateAnomalyTable(prev, curr):
 @app.callback(Output("tabs-figures", "children"), [Input("tabs", "value")])
 def renderTab(tab):
     try:
-        if tab == "tab-1":
+        if tab == "tab-0":
+            return html.Div(
+                [html.Iframe(srcDoc=profile, height=1000, width=1500)],
+                style={
+                    "width": "100%",
+                    "display": "flex",
+                    "align-items": "center",
+                    "justify-content": "center",
+                },
+            )
+
+        elif tab == "tab-1":
             fig = px.bar(
                 analysis_df,
                 x="category",
@@ -513,8 +510,9 @@ app.layout = html.Div(
         html.Div(id="output1"),
         dcc.Tabs(
             id="tabs",
-            value="tab-1",
+            value="tab-0",
             children=[
+                dcc.Tab(label="Analysis Profile", value="tab-0"),
                 dcc.Tab(label="Objects per class", value="tab-1"),
                 dcc.Tab(label="Images per class", value="tab-2"),
                 dcc.Tab(label="Objects per image", value="tab-3"),

@@ -236,7 +236,7 @@ def analyzeDataset(annotation_file, image_folder):
             "number of images",
             "avg number of objects per img",
             "avg percentage of img",
-            "avg num vertices / area",
+            "avg num vertices x 1000 / area",
             "images w/ abnormal objects",
             "abnormal objects",
         ],
