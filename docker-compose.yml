@@ -7,6 +7,7 @@ services:
     container_name: vizeda
     ports:
       - "80:5050"
+    volumes: ['./app']
     environment:
       - TARGET=$TARGET
     restart: unless-stopped
