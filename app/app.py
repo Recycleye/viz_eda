@@ -33,9 +33,9 @@ def parseContents(contents):
     content_type, content_string = contents.split(",")
     if content_type == "data:application/json;base64":
         decoded = base64.b64decode(content_string).decode("UTF-8")
-        with open("output.json", "w") as file:
+        with open("./output/output.json", "w") as file:
             file.write(decoded)
-        annotation_file = "output.json"
+        annotation_file = "./output/output.json"
         cocoData = coco.COCO(annotation_file)
     elif content_type == "data:application/octet-stream;base64":
         decoded = base64.b64decode(content_string)
@@ -163,6 +163,7 @@ def fig_to_uri(in_fig, close_all=True, **save_args):
 
 
 def getHtmlImgs(imgIDs, cat, outlying_anns=None):
+    # TODO: speed-up image loading and display
     global datadir
     htmlImgs = []
     catIds = cocoData.getCatIds(catNms=[cat])
@@ -471,6 +472,7 @@ app.layout = html.Div(
         ),
         html.Hr(),
         dbc.Input(
+            # TODO: Fix bug with textbox margins
             id="input_data_dir",
             type="text",
             placeholder="Path to images (i.e. C:/Users/me/project/data/val2017)",
@@ -478,6 +480,7 @@ app.layout = html.Div(
         ),
         html.Hr(),
         dbc.Row(
+            # TODO: Fix bug with button margins
             [
                 dbc.Col(
                     [
@@ -537,12 +540,12 @@ app.layout = html.Div(
 
 if __name__ == "__main__":
     # Run on docker
-    app.run_server(host="0.0.0.0", port=8050, debug=True)
+    # app.run_server(host="0.0.0.0", port=8050, debug=True)
 
     # Run locally
-    # app.run_server(port=8050, debug=True)
+    app.run_server(port=8050, debug=True)
 
     # Only do analysis
-    # annotation_file = ""
-    # datadir = ""
+    # annotation_file = "C:/Users/mrric/!Projects/RecyclEye/viz_eda/data/can dense_low_new/annotations/instances_train2019.json"
+    # datadir = "C:/Users/mrric/!Projects/RecyclEye/viz_eda/data/can dense_low_new/train2019"
     # analyzeDataset(annotation_file, datadir)

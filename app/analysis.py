@@ -5,6 +5,7 @@ import random
 from pycocotools import coco as coco
 from tqdm import tqdm
 from anomaly import getOutliers, getAnomalies
+import time
 
 
 def getNumObjs(filterClasses, cocoData):
@@ -108,9 +109,9 @@ def segmentTo2DArray(segmentation):
 
 def maskPixels(polygon, img_dict, image_folder):
     img = cv2.imread("{}/{}".format(image_folder, img_dict["file_name"]))
-    mask = np.zeros(img.shape[:2], dtype=np.uint8)
+    mask = np.zeros(img.shape, dtype=np.uint8)
     polygon = np.int32(polygon)
-    mask = cv2.fillPoly(mask, pts=[polygon], color=255)
+    mask = cv2.fillPoly(mask, pts=[polygon], color=(255, 255, 255))
     return img, mask
 
 
@@ -145,7 +146,7 @@ def getHistograms(images, masks):
     for image, mask in tqdm(zip(images, masks)):
         img_float32 = np.float32(image)
         bgr_planes = cv2.split(img_float32)
-        histSize = 50
+        histSize = 3
         histRange = (0, 256)  # the upper boundary is exclusive
         accumulate = False
 
@@ -171,6 +172,28 @@ def getHistograms(images, masks):
         ).flatten()
         data.append([b_features, g_features, r_features])
     return np.array(data)
+
+
+def getObjColors(images, masks):
+    n_colors = 4
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.1)
+    flags = cv2.KMEANS_RANDOM_CENTERS
+
+    data = []
+    img_masks = zip(images, masks)
+    for image, mask in tqdm(img_masks):
+        masked_image = cv2.bitwise_and(image, mask)
+        masked_image = cv2.cvtColor(masked_image, cv2.COLOR_BGR2RGB)
+
+        pixels = np.float32(masked_image.reshape(-1, 3))
+        pixels = pixels[np.all(pixels != 0, axis=1), :]
+        _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
+        _, counts = np.unique(labels, return_counts=True)
+
+        indices = np.argsort(counts)[::-1]
+        domColour = palette[indices[0]]
+        data.append(domColour)
+    return data
 
 
 def analyzeDataset(annotation_file, image_folder):
@@ -203,11 +226,18 @@ def analyzeDataset(annotation_file, image_folder):
             [cat], cocoData, annIds=mask_annIds
         )
 
-        print("Getting object histograms...")
-        histData = getHistograms(imgs, masks)
+        # print("Getting object histograms...")
+        # histData = getHistograms(imgs, masks)
+        histData = None
+
+        # print("Getting dominant object colours...")
+        # colourData = getObjColors(imgs, masks)
+        colourData = None
 
         print("Getting abnormal objects...")
-        preds_df = getOutliers(histData, areaData, roughnessData, contamination=0.05)
+        preds_df = getOutliers(
+            histData, colourData, areaData, roughnessData, contamination=0.05
+        )
         outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df["lof"], cocoData)
         print("Done!")
         print()
@@ -237,5 +267,6 @@ def analyzeDataset(annotation_file, image_folder):
         ],
     )
     print(df)
-    df.to_pickle("analysis.pkl")
+    timestr = time.strftime("%Y%m%d%H%M%S")
+    df.to_pickle("../output/analysis" + timestr + ".pkl")
     return df

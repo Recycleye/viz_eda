@@ -1,22 +1,33 @@
 import pandas as pd
-from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.decomposition import PCA
 
 
-def getOutliers(histData, areaData, roughnessData, nn=20, contamination=0.1):
+def getOutliers(
+    histData, colourData, areaData, roughnessData, nn=30, contamination=0.05
+):
     train = pd.DataFrame(areaData["annID"])
     train["area"] = areaData["proportion of img"]
     train["roughness"] = roughnessData["roughness of annotation"]
 
-    histData_2d = []
-    for obj_hist in histData:
-        pca = PCA(n_components=1)
-        features = pca.fit_transform(obj_hist)
-        histData_2d.append([features[0][0], features[1][0], features[2][0]])
-    train = train.join(
-        pd.DataFrame(histData_2d, columns=["hist_b", "hist_g", "hist_r"])
-    )
+    # TODO: Research other colour analysis anomaly detection methods
+    # -- histogram method does not work well
+    # -- k-means clustering is better, but slow
+    # -- anomaly detection with just area and roughness works great
+
+    # histData_2d = []
+    # for obj_hist in histData:
+    #     # pca = PCA(n_components=5)
+    #     # features = pca.fit_transform(obj_hist)
+    #     # histData_2d.append(features.flatten())
+    #     histData_2d.append(obj_hist.flatten())
+    # train = train.join(
+    #     pd.DataFrame(histData_2d)
+    # )
+
+    # train = train.join(
+    #     pd.DataFrame(colourData, columns=["R", "G", "B"])
+    # )
 
     train = train.drop(["annID"], axis=1)
     lof = LocalOutlierFactor(n_neighbors=nn, contamination=contamination)
