@@ -8,29 +8,29 @@ from anomaly import getOutliers, getAnomalies
 import time
 
 
-def getNumObjs(filterClasses, cocoData):
+def get_num_objs(filter_classes, coco_data):
     # Returns number of objects of a given class
-    catIds = cocoData.getCatIds(catNms=filterClasses)
-    annIds = cocoData.getAnnIds(catIds=catIds)
-    return len(annIds)
+    cat_ids = coco_data.getCatIds(catNms=filter_classes)
+    ann_ids = coco_data.getAnnIds(catIds=cat_ids)
+    return len(ann_ids)
 
 
-def getNumImgs(filterClasses, cocoData):
+def get_num_imgs(filter_classes, coco_data):
     # Returns number of imgs with an object of a given class
-    catIds = cocoData.getCatIds(catNms=filterClasses)
-    imgIds = cocoData.getImgIds(catIds=catIds)
-    return len(imgIds)
+    cat_ids = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cat_ids)
+    return len(img_ids)
 
 
-def getObjsPerImg(filterClasses, cocoData):
+def get_objs_per_img(filter_classes, coco_data):
     # Returns average number of objects of a given class in an image
-    catIds = cocoData.getCatIds(catNms=filterClasses)
-    imgIds = cocoData.getImgIds(catIds=catIds)
+    cat_ids = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cat_ids)
 
     data = {}
-    for img in imgIds:
-        annIds = cocoData.getAnnIds(imgIds=img, catIds=catIds)
-        data[len(data)] = [img, len(annIds)]
+    for img in img_ids:
+        ann_ids = coco_data.getAnnIds(imgIds=img, catIds=cat_ids)
+        data[len(data)] = [img, len(ann_ids)]
     df = pd.DataFrame.from_dict(
         data, orient="index", columns=["imgID", "number of objs"]
     )
@@ -38,25 +38,25 @@ def getObjsPerImg(filterClasses, cocoData):
     return avg, df
 
 
-def getProportion(filterClasses, cocoData, annIds=None):
+def get_proportion(filter_classes, coco_data, ann_ids=None):
     # Returns average proportion an object of a given class takes up in the image
-    catIds = cocoData.getCatIds(catNms=filterClasses)
-    imgIds = cocoData.getImgIds(catIds=catIds)
+    cat_ids = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cat_ids)
 
     data = {}
-    for imgId in imgIds:
-        imAnn = cocoData.loadImgs(ids=imgId)[0]
-        all_annIds = cocoData.getAnnIds(imgIds=imgId, catIds=catIds, iscrowd=0)
-        if annIds is not None:
-            all_annIds = list(set(all_annIds).intersection(set(annIds)))
-        objs = cocoData.loadAnns(ids=all_annIds)
+    for imgId in img_ids:
+        im_ann = coco_data.loadImgs(ids=imgId)[0]
+        all_ann_ids = coco_data.getAnnIds(imgIds=imgId, catIds=cat_ids, iscrowd=0)
+        if ann_ids is not None:
+            all_ann_ids = list(set(all_ann_ids).intersection(set(ann_ids)))
+        objs = coco_data.loadAnns(ids=all_ann_ids)
         for obj in objs:
             if "area" in obj:
-                proportion = obj["area"] / (imAnn["width"] * imAnn["height"])
+                proportion = obj["area"] / (im_ann["width"] * im_ann["height"])
             else:
-                polyVerts = segmentTo2DArray(obj["segmentation"])
-                area = getArea(polyVerts)
-                proportion = area / (imAnn["width"] * imAnn["height"])
+                poly_verts = segment_to_2d_array(obj["segmentation"])
+                area = get_area(poly_verts)
+                proportion = area / (im_ann["width"] * im_ann["height"])
             data[len(data)] = [imgId, obj["id"], proportion]
     df = pd.DataFrame.from_dict(
         data, orient="index", columns=["imgID", "annID", "proportion of img"]
@@ -65,25 +65,25 @@ def getProportion(filterClasses, cocoData, annIds=None):
     return avg, df
 
 
-def getSegRoughness(filterClasses, cocoData, annIds=None):
+def get_seg_roughness(filter_classes, coco_data, ann_ids=None):
     # Returns average roughness an object of a given class
     # "Roughness" = number of segmentation vertices / area of obj
-    catIds = cocoData.getCatIds(catNms=filterClasses)
-    imgIds = cocoData.getImgIds(catIds=catIds)
+    cat_ids = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cat_ids)
 
     data = {}
-    for imgID in imgIds:
-        all_annIds = cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=0)
-        if annIds is not None:
-            all_annIds = list(set(all_annIds).intersection(set(annIds)))
-        objs = cocoData.loadAnns(ids=all_annIds)
+    for imgID in img_ids:
+        all_ann_ids = coco_data.getAnnIds(imgIds=imgID, catIds=cat_ids, iscrowd=0)
+        if ann_ids is not None:
+            all_ann_ids = list(set(all_ann_ids).intersection(set(ann_ids)))
+        objs = coco_data.loadAnns(ids=all_ann_ids)
         for obj in objs:
             num_vertices = len(obj["segmentation"])
             if "area" in obj:
                 roughness = num_vertices / obj["area"]
             else:
-                polyVerts = segmentTo2DArray(obj["segmentation"])
-                area = getArea(polyVerts)
+                poly_verts = segment_to_2d_array(obj["segmentation"])
+                area = get_area(poly_verts)
                 roughness = (num_vertices * 1000) / area
             data[len(data)] = [imgID, obj["id"], roughness]
     df = pd.DataFrame.from_dict(
@@ -93,13 +93,13 @@ def getSegRoughness(filterClasses, cocoData, annIds=None):
     return avg, df
 
 
-def getArea(polygon):
-    Xs = np.array([x[0] for x in polygon])
-    Ys = np.array([y[1] for y in polygon])
-    return 0.5 * np.abs(np.dot(Xs, np.roll(Ys, 1)) - np.dot(Ys, np.roll(Xs, 1)))
+def get_area(polygon):
+    xs = np.array([x[0] for x in polygon])
+    ys = np.array([y[1] for y in polygon])
+    return 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
 
 
-def segmentTo2DArray(segmentation):
+def segment_to_2d_array(segmentation):
     polygon = []
     for partition in segmentation:
         for x, y in zip(partition[::2], partition[1::2]):
@@ -107,7 +107,7 @@ def segmentTo2DArray(segmentation):
     return polygon
 
 
-def maskPixels(polygon, img_dict, image_folder):
+def mask_pixels(polygon, img_dict, image_folder):
     img = cv2.imread("{}/{}".format(image_folder, img_dict["file_name"]))
     mask = np.zeros(img.shape, dtype=np.uint8)
     polygon = np.int32(polygon)
@@ -115,49 +115,49 @@ def maskPixels(polygon, img_dict, image_folder):
     return img, mask
 
 
-def getSegmentedMasks(filterClasses, image_folder, cocoData):
+def get_segmented_masks(filter_classes, image_folder, coco_data):
     # Returns single object annotation with black background
-    catIds = cocoData.getCatIds(catNms=filterClasses)
-    imgIds = cocoData.getImgIds(catIds=catIds)
+    cat_ids = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cat_ids)
 
-    if len(imgIds) > 500:
-        imgIds = random.sample(imgIds, 500)
-    imgs = cocoData.loadImgs(imgIds)
+    if len(img_ids) > 500:
+        img_ids = random.sample(img_ids, 500)
+    imgs = coco_data.loadImgs(img_ids)
 
-    mask_annIds = []
+    mask_ann_ids = []
     masks = []
     loaded_imgs = []
     for img_dict in tqdm(imgs):
         # Load annotations
-        annIds = cocoData.getAnnIds(imgIds=img_dict["id"], catIds=catIds, iscrowd=0)
-        anns = cocoData.loadAnns(annIds)
-        mask_annIds.extend(annIds)
+        ann_ids = coco_data.getAnnIds(imgIds=img_dict["id"], catIds=cat_ids, iscrowd=0)
+        anns = coco_data.loadAnns(ann_ids)
+        mask_ann_ids.extend(ann_ids)
         # Create masked images
         for ann in anns:
-            polyVerts = segmentTo2DArray(ann["segmentation"])
-            img, mask = maskPixels(polyVerts, img_dict, image_folder)
+            poly_verts = segment_to_2d_array(ann["segmentation"])
+            img, mask = mask_pixels(poly_verts, img_dict, image_folder)
             masks.append(mask)
             loaded_imgs.append(img)
-    return loaded_imgs, masks, mask_annIds
+    return loaded_imgs, masks, mask_ann_ids
 
 
-def getHistograms(images, masks):
+def get_histograms(images, masks):
     data = []
     for image, mask in tqdm(zip(images, masks)):
         img_float32 = np.float32(image)
         bgr_planes = cv2.split(img_float32)
-        histSize = 3
-        histRange = (0, 256)  # the upper boundary is exclusive
+        hist_size = 3
+        hist_range = (0, 256)  # the upper boundary is exclusive
         accumulate = False
 
         b_hist = cv2.calcHist(
-            bgr_planes, [0], mask, [histSize], histRange, accumulate=accumulate
+            bgr_planes, [0], mask, [hist_size], hist_range, accumulate=accumulate
         )
         g_hist = cv2.calcHist(
-            bgr_planes, [1], mask, [histSize], histRange, accumulate=accumulate
+            bgr_planes, [1], mask, [hist_size], hist_range, accumulate=accumulate
         )
         r_hist = cv2.calcHist(
-            bgr_planes, [2], mask, [histSize], histRange, accumulate=accumulate
+            bgr_planes, [2], mask, [hist_size], hist_range, accumulate=accumulate
         )
 
         hist_h = 400
@@ -174,7 +174,7 @@ def getHistograms(images, masks):
     return np.array(data)
 
 
-def getObjColors(images, masks):
+def get_obj_colors(images, masks):
     n_colors = 4
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.1)
     flags = cv2.KMEANS_RANDOM_CENTERS
@@ -191,14 +191,14 @@ def getObjColors(images, masks):
         _, counts = np.unique(labels, return_counts=True)
 
         indices = np.argsort(counts)[::-1]
-        domColour = palette[indices[0]]
-        data.append(domColour)
+        dom_colour = palette[indices[0]]
+        data.append(dom_colour)
     return data
 
 
-def analyzeDataset(annotation_file, image_folder):
-    cocoData = coco.COCO(annotation_file)
-    cats = cocoData.loadCats(cocoData.getCatIds())
+def analyze_dataset(annotation_file, image_folder):
+    coco_data = coco.COCO(annotation_file)
+    cats = coco_data.loadCats(coco_data.getCatIds())
     nms = [cat["name"] for cat in cats]
 
     data = {}
@@ -207,49 +207,51 @@ def analyzeDataset(annotation_file, image_folder):
         print(cat + ": " + str(cat_num) + "/" + str(len(nms)))
 
         print("Loading object masks...")
-        imgs, masks, mask_annIds = getSegmentedMasks([cat], image_folder, cocoData)
+        imgs, masks, mask_ann_ids = get_segmented_masks([cat], image_folder, coco_data)
 
         print("Getting number of objects...")
-        numObjs = getNumObjs([cat], cocoData)
+        num_objs = get_num_objs([cat], coco_data)
 
         print("Getting number of images...")
-        numImgs = getNumImgs([cat], cocoData)
+        num_imgs = get_num_imgs([cat], coco_data)
 
         print("Getting average number of objects per images...")
-        avgObjsPerImg, _ = getObjsPerImg([cat], cocoData)
+        avg_objs_per_img, _ = get_objs_per_img([cat], coco_data)
 
         print("Getting average area...")
-        avgArea, areaData = getProportion([cat], cocoData, annIds=mask_annIds)
+        avg_area, area_data = get_proportion([cat], coco_data, ann_ids=mask_ann_ids)
 
         print("Getting average roughness of segmentation...")
-        avgRoughness, roughnessData = getSegRoughness(
-            [cat], cocoData, annIds=mask_annIds
+        avg_roughness, roughness_data = get_seg_roughness(
+            [cat], coco_data, ann_ids=mask_ann_ids
         )
 
         # print("Getting object histograms...")
-        # histData = getHistograms(imgs, masks)
-        histData = None
+        # hist_data = getHistograms(imgs, masks)
+        hist_data = None
 
         # print("Getting dominant object colours...")
-        # colourData = getObjColors(imgs, masks)
-        colourData = None
+        # colour_data = getObjColors(imgs, masks)
+        colour_data = None
 
         print("Getting abnormal objects...")
         preds_df = getOutliers(
-            histData, colourData, areaData, roughnessData, contamination=0.05
+            hist_data, colour_data, area_data, roughness_data, contamination=0.05
         )
-        outlier_imgIds, outlier_annIds = getAnomalies([cat], preds_df["lof"], cocoData)
+        outlier_img_ids, outlier_ann_ids = getAnomalies(
+            [cat], preds_df["lof"], coco_data
+        )
         print("Done!")
         print()
         data[len(data)] = [
             cat,
-            numObjs,
-            numImgs,
-            avgObjsPerImg,
-            avgArea,
-            avgRoughness,
-            outlier_imgIds,
-            outlier_annIds,
+            num_objs,
+            num_imgs,
+            avg_objs_per_img,
+            avg_area,
+            avg_roughness,
+            outlier_img_ids,
+            outlier_ann_ids,
         ]
         cat_num += 1
     df = pd.DataFrame.from_dict(

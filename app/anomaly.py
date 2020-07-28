@@ -3,12 +3,12 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.decomposition import PCA
 
 
-def getOutliers(
-    histData, colourData, areaData, roughnessData, nn=30, contamination=0.05
+def get_outliers(
+    hist_data, colour_data, area_data, roughness_data, nn=30, contamination=0.05
 ):
-    train = pd.DataFrame(areaData["annID"])
-    train["area"] = areaData["proportion of img"]
-    train["roughness"] = roughnessData["roughness of annotation"]
+    train = pd.DataFrame(area_data["annID"])
+    train["area"] = area_data["proportion of img"]
+    train["roughness"] = roughness_data["roughness of annotation"]
 
     # TODO: Research other colour analysis anomaly detection methods
     # -- histogram method does not work well
@@ -37,19 +37,19 @@ def getOutliers(
     return results
 
 
-def getAnomalies(filterClasses, preds, cocoData):
-    catIds = cocoData.getCatIds(catNms=filterClasses)
-    imgIds = cocoData.getImgIds(catIds=catIds)
-    annIds = cocoData.getAnnIds(imgIds=imgIds, catIds=catIds, iscrowd=0)
+def get_anomalies(filter_classes, preds, coco_data):
+    cat_ids = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cat_ids)
+    ann_ids = coco_data.getAnnIds(imgIds=img_ids, catIds=cat_ids, iscrowd=0)
 
     outlying_objs_anns = []
-    for annId, pred in zip(annIds, preds):
+    for annId, pred in zip(ann_ids, preds):
         if pred == -1:
             outlying_objs_anns.append(annId)
 
     imgs_with_outliers = []
-    for img in imgIds:
-        img_anns = set(cocoData.getAnnIds(imgIds=[img]))
+    for img in img_ids:
+        img_anns = set(coco_data.getAnnIds(imgIds=[img]))
         outlying_anns = set(outlying_objs_anns)
         if len(img_anns.intersection(outlying_anns)) > 0:
             imgs_with_outliers.append(img)

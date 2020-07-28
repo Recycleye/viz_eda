@@ -28,7 +28,7 @@ annotation_file = ""
 cocoData = None
 
 
-def parseContents(contents):
+def parse_contents(contents):
     global analysis_df, datadir, annotation_file, cocoData, profile
     content_type, content_string = contents.split(",")
     if content_type == "data:application/json;base64":
@@ -55,9 +55,9 @@ def parseContents(contents):
     Output("output-ann-data-upload", "children"),
     [Input("upload-annotation-data", "contents")],
 )
-def uploadAnnData(contents):
+def upload_ann_data(contents):
     if contents is not None:
-        children = parseContents(contents)
+        children = parse_contents(contents)
         return children
 
 
@@ -65,20 +65,20 @@ def uploadAnnData(contents):
     Output("output-analysis-data-upload", "children"),
     [Input("upload-analysis-data", "contents")],
 )
-def uploadAnalysisData(contents):
+def upload_analysis_data(contents):
     if contents is not None:
-        children = parseContents(contents)
+        children = parse_contents(contents)
         return children
 
 
 @app.callback(Output("output", "children"), [Input("input_data_dir", "value")])
-def dataDirInput(value):
+def data_dir_input(value):
     global datadir
     datadir = value
 
 
 @app.callback(Output("output1", "children"), [Input("analyze_button", "n_clicks")])
-def analyzeButton(n_clicks):
+def analyze_button(n_clicks):
     global datadir, annotation_file, analysis_df, profile
     if n_clicks is not None and datadir != "" and annotation_file != "":
         try:
@@ -93,9 +93,9 @@ def analyzeButton(n_clicks):
 
 
 @app.callback(Output("obj_hist_out", "children"), [Input("objs_per_img", "clickData")])
-def displayObjHist(clickData):
-    if clickData is not None:
-        cat = clickData["points"][0]["x"]
+def display_obj_hist(click_data):
+    if click_data is not None:
+        cat = click_data["points"][0]["x"]
         global objCat
         objCat = cat
         title = "Number of " + cat + "s in an image w/ " + cat + "s"
@@ -121,9 +121,9 @@ def displayObjHist(clickData):
 
 
 @app.callback(Output("area_hist_out", "children"), [Input("cat_areas", "clickData")])
-def displayAreaHist(clickData):
-    if clickData is not None:
-        cat = clickData["points"][0]["x"]
+def display_area_hist(click_data):
+    if click_data is not None:
+        cat = click_data["points"][0]["x"]
         global areaCat
         areaCat = cat
         title = "Percentage area of a(n) " + cat + " in an image"
@@ -162,79 +162,78 @@ def fig_to_uri(in_fig, close_all=True, **save_args):
     return "data:image/png;base64,{}".format(encoded)
 
 
-def getHtmlImgs(imgIDs, cat, outlying_anns=None):
+def get_html_imgs(img_ids, cat, outlying_anns=None):
     # TODO: speed-up image loading and display
     global datadir
-    htmlImgs = []
-    catIds = cocoData.getCatIds(catNms=[cat])
+    html_imgs = []
+    cat_ids = cocoData.getCatIds(catNms=[cat])
     print("Loading images...")
-    for imgID in tqdm(set(imgIDs)):
-        imAnn = cocoData.loadImgs(ids=imgID)[0]
+    for imgID in tqdm(set(img_ids)):
+        im_ann = cocoData.loadImgs(ids=imgID)[0]
         image_filename = (
-            datadir + "/" + imAnn["file_name"]
+            datadir + "/" + im_ann["file_name"]
         )  # replace with your own image
-        I = io.imread(image_filename) / 255.0
-        plt.imshow(I)
+        i = io.imread(image_filename) / 255.0
+        plt.imshow(i)
         plt.axis("off")
         if outlying_anns is None:
-            annIds = cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=None)
-            anns = cocoData.loadAnns(annIds)
+            ann_ids = cocoData.getAnnIds(imgIds=imgID, catIds=cat_ids, iscrowd=None)
+            anns = cocoData.loadAnns(ann_ids)
         else:
-            annIds = set(cocoData.getAnnIds(imgIds=imgID, catIds=catIds, iscrowd=None))
-            annIds = list(annIds.intersection(set(outlying_anns)))
-            anns = cocoData.loadAnns(annIds)
+            ann_ids = set(
+                cocoData.getAnnIds(imgIds=imgID, catIds=cat_ids, iscrowd=None)
+            )
+            ann_ids = list(ann_ids.intersection(set(outlying_anns)))
+            anns = cocoData.loadAnns(ann_ids)
         cocoData.showAnns(anns)
         decoded_image = fig_to_uri(plt)
         plt.close()
-        htmlImgs.append(
+        html_imgs.append(
             html.Img(
                 id={"type": "output_image", "index": str(imgID)},
                 src=decoded_image,
                 **{"data-category": cat}
             )
         )
-    return htmlImgs
+    return html_imgs
 
 
 @app.callback(Output("obj_imgs", "children"), [Input("objs_hist", "clickData")])
-def displayObjImgs(clickData):
-    if clickData is not None:
+def display_obj_imgs(click_data):
+    if click_data is not None:
         _, data = getObjsPerImg([objCat], cocoData)
-        num_objs = clickData["points"][0]["x"]
-        imgIDs = data.loc[data["number of objs"] == num_objs]["imgID"]
-        htmlImgs = getHtmlImgs(imgIDs, objCat)
-        return html.Div(htmlImgs)
+        num_objs = click_data["points"][0]["x"]
+        img_ids = data.loc[data["number of objs"] == num_objs]["imgID"]
+        html_imgs = get_html_imgs(img_ids, objCat)
+        return html.Div(html_imgs)
 
 
 @app.callback(Output("area_imgs", "children"), [Input("area_hist", "clickData")])
-def displayAreaImgs(clickData):
-    if clickData is not None:
+def display_area_imgs(click_data):
+    if click_data is not None:
         _, data = getProportion([areaCat], cocoData)
         data_df = pd.DataFrame(data)
-        print(clickData)
-        print(data_df)
-        pointnums = clickData["points"][0]["pointNumbers"]
-        imgIDs = data_df[data_df.index.isin(pointnums)]["imgID"]
-        print(len(imgIDs))
-        htmlImgs = getHtmlImgs(imgIDs, areaCat)
-        return html.Div(htmlImgs)
+        point_nums = click_data["points"][0]["pointNumbers"]
+        img_ids = data_df[data_df.index.isin(point_nums)]["imgID"]
+        html_imgs = get_html_imgs(img_ids, areaCat)
+        return html.Div(html_imgs)
 
 
 @app.callback(Output("anomaly_imgs", "children"), [Input("cat_selection", "value")])
-def displayAnomalies(value):
+def display_anomalies(value):
     global analysis_df
     try:
-        outlier_imgIds = (
+        outlier_img_ids = (
             analysis_df["images w/ abnormal objects"][
                 analysis_df["category"] == value
             ].tolist()
         )[0]
-        outlier_annIds = (
+        outlier_ann_ids = (
             analysis_df["abnormal objects"][analysis_df["category"] == value].tolist()
         )[0]
-        htmlImgs = getHtmlImgs(outlier_imgIds, value, outlying_anns=outlier_annIds)
+        html_imgs = get_html_imgs(outlier_img_ids, value, outlying_anns=outlier_ann_ids)
         return html.Div(
-            children=htmlImgs,
+            children=html_imgs,
             style={
                 "margin-left": "25px",
                 "margin-top": "25px",
@@ -267,7 +266,7 @@ def input_triggers_spinner(value):
         State({"type": "output_image", "index": ALL}, "id"),
     ],
 )
-def displayAnomalyTable(n_clicks, cat, id):
+def display_anomaly_table(n_clicks, cat, id):
     global anomaly_table_df
     for i, val in enumerate(n_clicks):
         file = id[i]["index"]
@@ -294,7 +293,7 @@ def displayAnomalyTable(n_clicks, cat, id):
     [Input("anomaly_datatable", "data_previous")],
     [State("anomaly_datatable", "data")],
 )
-def updateAnomalyTable(prev, curr):
+def update_anomaly_table(prev, curr):
     if prev is None:
         dash.exceptions.PreventUpdate()
     else:
@@ -309,7 +308,7 @@ def updateAnomalyTable(prev, curr):
 
 
 @app.callback(Output("tabs-figures", "children"), [Input("tabs", "value")])
-def renderTab(tab):
+def render_tab(tab):
     try:
         if tab == "tab-0":
             try:
@@ -392,10 +391,10 @@ def renderTab(tab):
             )
 
         elif tab == "tab-5":
-            catIds = cocoData.getCatIds()
-            catDict = cocoData.loadCats(catIds)
-            catNms = [d["name"] for d in catDict]
-            options = [{"label": i, "value": i} for i in catNms]
+            cat_ids = cocoData.getCatIds()
+            cat_dict = cocoData.loadCats(cat_ids)
+            cat_nms = [d["name"] for d in cat_dict]
+            options = [{"label": i, "value": i} for i in cat_nms]
 
             return html.Div(
                 [
@@ -413,7 +412,7 @@ def renderTab(tab):
                                     dcc.Dropdown(
                                         id="cat_selection",
                                         options=options,
-                                        value=catNms[0],
+                                        value=cat_nms[0],
                                         style={
                                             "margin-top": "25px",
                                             "margin-left": "25px",
@@ -546,6 +545,6 @@ if __name__ == "__main__":
     app.run_server(port=8050, debug=True)
 
     # Only do analysis
-    # annotation_file = "C:/Users/mrric/!Projects/RecyclEye/viz_eda/data/can dense_low_new/annotations/instances_train2019.json"
-    # datadir = "C:/Users/mrric/!Projects/RecyclEye/viz_eda/data/can dense_low_new/train2019"
+    # annotation_file = ""
+    # datadir = ""
     # analyzeDataset(annotation_file, datadir)
