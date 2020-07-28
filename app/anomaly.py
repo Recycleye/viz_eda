@@ -1,23 +1,26 @@
 import pandas as pd
 from sklearn.neighbors import LocalOutlierFactor
-from sklearn.decomposition import PCA
+
+# from sklearn.decomposition import PCA
 
 
-def get_outliers(
-    hist_data, colour_data, area_data, roughness_data, nn=30, contamination=0.05
-):
+def get_outliers(hist, colour, area, roughness, nn=30, contam=0.05):
     """
-    :param hist_data: (hist_size, 3) numpy array of B, G, R histograms
-    :param colour_data: list of dominant colours of objects
-    :param area_data: df containing area of each object, along with its annID and imgID
-    :param roughness_data: df containing roughness of each object, along with its annID and imgID
+    :param hist: (hist_size, 3) numpy array of B, G, R histograms
+    :param colour: list of dominant colours of objects
+    :param area: df containing area of each object, along with its annID
+    and imgID
+    :param roughness: df containing roughness of each object, along with
+    its annID and imgID
     :param nn: number of neighbours used in LOF outlier detection
-    :param contamination: estimated percentage of outliers/anomalies in the given dataset
-    :return: df containing annID, lof score (-1 for outlier, 1 for inlier), and negative outlier factor of all objects
+    :param contam: estimated percentage of outliers/anomalies in the
+    given dataset
+    :return: df containing annID, lof score (-1 for outlier, 1 for inlier),
+    and negative outlier factor of all objects
     """
-    train = pd.DataFrame(area_data["annID"])
-    train["area"] = area_data["proportion of img"]
-    train["roughness"] = roughness_data["roughness of annotation"]
+    train = pd.DataFrame(area["annID"])
+    train["area"] = area["proportion of img"]
+    train["roughness"] = roughness["roughness"]
 
     # TODO: Research other colour analysis anomaly detection methods
     # -- histogram method does not work well
@@ -39,7 +42,7 @@ def get_outliers(
     # )
 
     train = train.drop(["annID"], axis=1)
-    lof = LocalOutlierFactor(n_neighbors=nn, contamination=contamination)
+    lof = LocalOutlierFactor(n_neighbors=nn, contamination=contam)
     results = pd.DataFrame()
     results["lof"] = lof.fit_predict(train)
     results["negative_outlier_factor"] = lof.negative_outlier_factor_
@@ -49,7 +52,8 @@ def get_outliers(
 def get_anomalies(filter_classes, preds, coco_data):
     """
     :param filter_classes: list of class names
-    :param preds: df containing annIDs, lof score (-1 for outlier, 1 for inlier), and negative outlier factor of objects
+    :param preds: df containing annIDs, lof score
+    (-1 for outlier, 1 for inlier), and negative outlier factor of objects
     :param coco_data: loaded coco dataset
     :return: imgIDs of outliers, annIDs of outliers
     """

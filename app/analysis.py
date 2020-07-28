@@ -1,11 +1,12 @@
+import random
+import time
+
+import cv2
 import numpy as np
 import pandas as pd
-import cv2
-import random
+from anomaly import get_anomalies, get_outliers
 from pycocotools import coco as coco
 from tqdm import tqdm
-from anomaly import getOutliers, getAnomalies
-import time
 
 
 def get_num_objs(filter_classes, coco_data):
@@ -39,13 +40,11 @@ def get_objs_per_img(filter_classes, coco_data):
     cat_ids = coco_data.getCatIds(catNms=filter_classes)
     img_ids = coco_data.getImgIds(catIds=cat_ids)
 
-    data = {}
+    data = []
     for img in img_ids:
         ann_ids = coco_data.getAnnIds(imgIds=img, catIds=cat_ids)
-        data[len(data)] = [img, len(ann_ids)]
-    df = pd.DataFrame.from_dict(
-        data, orient="index", columns=["imgID", "number of objs"]
-    )
+        data.append((img, len(ann_ids)))
+    df = pd.DataFrame(data, columns=["imgID", "number of objs"])
     avg = df["number of objs"].sum() / len(df["number of objs"])
     return avg, df
 
@@ -55,65 +54,67 @@ def get_proportion(filter_classes, coco_data, ann_ids=None):
     :param filter_classes: list of class names
     :param coco_data: loaded coco dataset
     :param ann_ids: list of object IDs
-    :return: average proportion an object of the given classes take up in the image, uses all objs if ann_ids is None
+    :return: average proportion an object of the given classes take up in the
+    image, uses all objs if ann_ids is None
     :return: df containing area of each object, along with its annID and imgID
     """
-    cat_ids = coco_data.getCatIds(catNms=filter_classes)
-    img_ids = coco_data.getImgIds(catIds=cat_ids)
+    cats = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cats)
 
-    data = {}
-    for imgId in img_ids:
-        im_ann = coco_data.loadImgs(ids=imgId)[0]
-        all_ann_ids = coco_data.getAnnIds(imgIds=imgId, catIds=cat_ids, iscrowd=0)
+    data = []
+    for imgid in img_ids:
+        im_ann = coco_data.loadImgs(ids=imgid)[0]
+        all_ann_ids = coco_data.getAnnIds(imgIds=imgid, catIds=cats, iscrowd=0)
         if ann_ids is not None:
             all_ann_ids = list(set(all_ann_ids).intersection(set(ann_ids)))
         objs = coco_data.loadAnns(ids=all_ann_ids)
         for obj in objs:
+            # Check if annotation file includes precomputed area for object
+            # If not, area needs to be calculated
             if "area" in obj:
                 proportion = obj["area"] / (im_ann["width"] * im_ann["height"])
             else:
                 poly_verts = segment_to_2d_array(obj["segmentation"])
                 area = get_area(poly_verts)
                 proportion = area / (im_ann["width"] * im_ann["height"])
-            data[len(data)] = [imgId, obj["id"], proportion]
-    df = pd.DataFrame.from_dict(
-        data, orient="index", columns=["imgID", "annID", "proportion of img"]
-    )
+            data.append((imgid, obj["id"], proportion))
+    df = pd.DataFrame(data, columns=["imgID", "annID", "proportion of img"])
     avg = df["proportion of img"].sum() / len(df["proportion of img"])
     return avg, df
 
 
-def get_seg_roughness(filter_classes, coco_data, ann_ids=None):
+def get_roughness(filter_classes, coco_data, ann_ids=None):
     """
     :param filter_classes: list of class names
     :param coco_data: loaded coco dataset
     :param ann_ids: list of object IDs
-    :return: average roughness an object of the given classes, uses all objs if ann_ids is None
-    :return: df containing roughness of each object, along with its annID and imgID
+    :return: average roughness an object of the given classes, uses all objs
+    if ann_ids is None
+    :return: df containing roughness of each object, along with its annID+imgID
              "roughness" = number of segmentation vertices / area of obj
     """
-    cat_ids = coco_data.getCatIds(catNms=filter_classes)
-    img_ids = coco_data.getImgIds(catIds=cat_ids)
+    cats = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cats)
 
-    data = {}
+    data = []
     for imgID in img_ids:
-        all_ann_ids = coco_data.getAnnIds(imgIds=imgID, catIds=cat_ids, iscrowd=0)
+        all_ann_ids = coco_data.getAnnIds(imgIds=imgID, catIds=cats, iscrowd=0)
         if ann_ids is not None:
             all_ann_ids = list(set(all_ann_ids).intersection(set(ann_ids)))
         objs = coco_data.loadAnns(ids=all_ann_ids)
         for obj in objs:
             num_vertices = len(obj["segmentation"])
+            # Check if annotation file includes precomputed area for object
+            # If not, area needs to be calculated
             if "area" in obj:
                 roughness = num_vertices / obj["area"]
             else:
                 poly_verts = segment_to_2d_array(obj["segmentation"])
                 area = get_area(poly_verts)
-                roughness = (num_vertices * 1000) / area
-            data[len(data)] = [imgID, obj["id"], roughness]
-    df = pd.DataFrame.from_dict(
-        data, orient="index", columns=["imgID", "annID", "roughness of annotation"]
-    )
-    avg = df["roughness of annotation"].sum() / len(df["roughness of annotation"])
+                roughness = num_vertices / area
+            data.append((imgID, obj["id"], roughness * 1000))
+    df = pd.DataFrame(data, columns=["imgID", "annID", "roughness"])
+    avg = df["roughness"].sum() / len(df["roughness"])
     return avg, df
 
 
@@ -124,7 +125,8 @@ def get_area(polygon):
     """
     xs = np.array([x[0] for x in polygon])
     ys = np.array([y[1] for y in polygon])
-    return 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
+    v = np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
+    return 0.5 * v
 
 
 def segment_to_2d_array(segmentation):
@@ -153,19 +155,22 @@ def mask_pixels(polygon, img_dict, image_folder):
     return img, mask
 
 
-def get_segmented_masks(filter_classes, image_folder, coco_data):
+def get_segmented_masks(filter_classes, image_folder, coco_data, sample=500):
     """
     :param filter_classes: list of class names
     :param image_folder: path to folder containing images
     :param coco_data: loaded coco dataset
-    :return: loaded images, list of object masks, and object ids specified by filter_classes
+    :param sample: sample number of imgs to speed up processing
+    :return: loaded images, list of object masks, and objIDs specified class
     """
     # Returns single object annotation with black background
-    cat_ids = coco_data.getCatIds(catNms=filter_classes)
-    img_ids = coco_data.getImgIds(catIds=cat_ids)
+    cats = coco_data.getCatIds(catNms=filter_classes)
+    img_ids = coco_data.getImgIds(catIds=cats)
 
-    if len(img_ids) > 500:
-        img_ids = random.sample(img_ids, 500)
+    # If number of img_ids exceeds sample_images,
+    # take a random sample to speed up processing time
+    if len(img_ids) > sample:
+        img_ids = random.sample(img_ids, sample)
     imgs = coco_data.loadImgs(img_ids)
 
     mask_ann_ids = []
@@ -173,7 +178,8 @@ def get_segmented_masks(filter_classes, image_folder, coco_data):
     loaded_imgs = []
     for img_dict in tqdm(imgs):
         # Load annotations
-        ann_ids = coco_data.getAnnIds(imgIds=img_dict["id"], catIds=cat_ids, iscrowd=0)
+        id = img_dict["id"]
+        ann_ids = coco_data.getAnnIds(imgIds=id, catIds=cats, iscrowd=0)
         anns = coco_data.loadAnns(ann_ids)
         mask_ann_ids.extend(ann_ids)
         # Create masked images
@@ -197,16 +203,16 @@ def get_histograms(images, masks):
         bgr_planes = cv2.split(img_float32)
         hist_size = 3
         hist_range = (0, 256)  # the upper boundary is exclusive
-        accumulate = False
+        acc = False
 
         b_hist = cv2.calcHist(
-            bgr_planes, [0], mask, [hist_size], hist_range, accumulate=accumulate
+            bgr_planes, [0], mask, [hist_size], hist_range, accumulate=acc
         )
         g_hist = cv2.calcHist(
-            bgr_planes, [1], mask, [hist_size], hist_range, accumulate=accumulate
+            bgr_planes, [1], mask, [hist_size], hist_range, accumulate=acc
         )
         r_hist = cv2.calcHist(
-            bgr_planes, [2], mask, [hist_size], hist_range, accumulate=accumulate
+            bgr_planes, [2], mask, [hist_size], hist_range, accumulate=acc
         )
 
         hist_h = 400
@@ -241,49 +247,47 @@ def get_obj_colors(images, masks):
 
         pixels = np.float32(masked_image.reshape(-1, 3))
         pixels = pixels[np.all(pixels != 0, axis=1), :]
-        _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
-        _, counts = np.unique(labels, return_counts=True)
+        _, lab, pal = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
+        _, counts = np.unique(lab, return_counts=True)
 
         indices = np.argsort(counts)[::-1]
-        dom_colour = palette[indices[0]]
+        dom_colour = pal[indices[0]]
         data.append(dom_colour)
     return data
 
 
-def analyze_dataset(annotation_file, image_folder):
+def analyze_dataset(annotation_file, imgs_path):
     """
     :param annotation_file: path to JSON coco-style annotation file
-    :param image_folder: path to folder containing images corresponding to annotation_file
+    :param imgs_path: path to folder containing images corresponding to
+    annotation_file
     :return: final analysis dataframe
     """
     coco_data = coco.COCO(annotation_file)
     cats = coco_data.loadCats(coco_data.getCatIds())
-    nms = [cat["name"] for cat in cats]
-
-    data = {}
-    cat_num = 1
-    for cat in nms:
-        print(cat + ": " + str(cat_num) + "/" + str(len(nms)))
+    names = [cat["name"] for cat in cats]
+    data = []
+    for cat_name, cat in enumerate(names):
+        cat = [cat]
+        print(cat[0] + ": " + str(cat_name) + "/" + str(len(names)))
 
         print("Loading object masks...")
-        imgs, masks, mask_ann_ids = get_segmented_masks([cat], image_folder, coco_data)
+        imgs, masks, anns = get_segmented_masks(cat, imgs_path, coco_data)
 
         print("Getting number of objects...")
-        num_objs = get_num_objs([cat], coco_data)
+        num_objs = get_num_objs(cat, coco_data)
 
         print("Getting number of images...")
-        num_imgs = get_num_imgs([cat], coco_data)
+        num_imgs = get_num_imgs(cat, coco_data)
 
         print("Getting average number of objects per images...")
-        avg_objs_per_img, _ = get_objs_per_img([cat], coco_data)
+        avg_objs_per_img, _ = get_objs_per_img(cat, coco_data)
 
         print("Getting average area...")
-        avg_area, area_data = get_proportion([cat], coco_data, ann_ids=mask_ann_ids)
+        avg_area, area_data = get_proportion(cat, coco_data, ann_ids=anns)
 
         print("Getting average roughness of segmentation...")
-        avg_roughness, roughness_data = get_seg_roughness(
-            [cat], coco_data, ann_ids=mask_ann_ids
-        )
+        avg_roughness, roughness = get_roughness(cat, coco_data, ann_ids=anns)
 
         # print("Getting object histograms...")
         # hist_data = getHistograms(imgs, masks)
@@ -294,28 +298,28 @@ def analyze_dataset(annotation_file, image_folder):
         colour_data = None
 
         print("Getting abnormal objects...")
-        preds_df = getOutliers(
-            hist_data, colour_data, area_data, roughness_data, contamination=0.05
+        preds_df = get_outliers(
+            hist_data, colour_data, area_data, roughness, contamination=0.05
         )
-        outlier_img_ids, outlier_ann_ids = getAnomalies(
-            [cat], preds_df["lof"], coco_data
+        outlier_img_ids, outlier_ann_ids = get_anomalies(
+            cat, preds_df["lof"], coco_data
         )
         print("Done!")
         print()
-        data[len(data)] = [
-            cat,
-            num_objs,
-            num_imgs,
-            avg_objs_per_img,
-            avg_area,
-            avg_roughness,
-            outlier_img_ids,
-            outlier_ann_ids,
-        ]
-        cat_num += 1
-    df = pd.DataFrame.from_dict(
+        data.append(
+            (
+                cat[0],
+                num_objs,
+                num_imgs,
+                avg_objs_per_img,
+                avg_area,
+                avg_roughness,
+                outlier_img_ids,
+                outlier_ann_ids,
+            )
+        )
+    df = pd.DataFrame(
         data,
-        orient="index",
         columns=[
             "category",
             "number of objects",
@@ -327,7 +331,6 @@ def analyze_dataset(annotation_file, image_folder):
             "abnormal objects",
         ],
     )
-    print(df)
     timestr = time.strftime("%Y%m%d%H%M%S")
-    df.to_pickle("../output/analysis" + timestr + ".pkl")
+    df.to_feather("./output/analysis" + timestr)
     return df

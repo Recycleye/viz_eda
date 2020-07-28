@@ -1,11 +1,28 @@
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.3.0
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.1.0
     hooks:
-    -   id: check-yaml
-    -   id: end-of-file-fixer
-    -   id: trailing-whitespace
--   repo: https://github.com/psf/black
-    rev: 19.3b0
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/asottile/seed-isort-config
+    rev: v2.2.0
     hooks:
-    -   id: black
+      - id: seed-isort-config
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.1.4
+    hooks:
+      - id: isort
+  - repo: https://github.com/ambv/black
+    rev: 19.10b0
+    hooks:
+      - id: black
+  - repo: https://github.com/pycqa/flake8
+    rev: 3.8.3
+    hooks:
+      - id: flake8
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.6.2
+    hooks:
+      - id: bandit
+        args: ["--skip=B311"]

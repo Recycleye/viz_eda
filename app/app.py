@@ -1,7 +1,6 @@
 import base64
-import time
-from analysis import analyzeDataset, getObjsPerImg, getProportion, coco
 from io import BytesIO
+
 import dash
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
@@ -11,15 +10,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
+from dash.dependencies import ALL, Input, Output, State
 from pandas_profiling import ProfileReport
-from dash.dependencies import Input, Output, State, ALL
 from skimage import io
 from tqdm import tqdm
 
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 analysis_df = pd.DataFrame()
-anomaly_table_df = pd.DataFrame(columns=["Category", "Image filename"])
+anomaly_table = pd.DataFrame(columns=["Category", "Image filename"])
 profile = ""
 objCat = ""
 areaCat = ""
@@ -40,7 +40,7 @@ def parse_contents(contents):
     elif content_type == "data:application/octet-stream;base64":
         decoded = base64.b64decode(content_string)
         try:
-            analysis_df = pd.read_pickle(BytesIO(decoded), compression=None)
+            analysis_df = pd.read_feather(BytesIO(decoded))
             print("Loaded analysis file!")
             profile = ProfileReport(analysis_df, title="Dataset").to_html()
         except Exception as e:
@@ -71,63 +71,66 @@ def upload_analysis_data(contents):
         return children
 
 
-@app.callback(Output("output", "children"), [Input("input_data_dir", "value")])
+@app.callback(
+    Output("output", "children"), [Input("input_data_dir", "value")],
+)
 def data_dir_input(value):
     global datadir
     datadir = value
 
 
-@app.callback(Output("output1", "children"), [Input("analyze_button", "n_clicks")])
+@app.callback(
+    Output("output1", "children"), [Input("analyze_button", "n_clicks")],
+)
 def analyze_button(n_clicks):
     global datadir, annotation_file, analysis_df, profile
     if n_clicks is not None and datadir != "" and annotation_file != "":
         try:
-            analysis_df = analyzeDataset(annotation_file, datadir)
+            analysis_df = analyze_dataset(annotation_file, datadir)
             profile = ProfileReport(analysis_df, title="Dataset").to_html()
         except Exception as e:
             print(e)
             return html.Div(
-                children="Please load a valid COCO-style annotation file and define a valid folder.",
+                children="Please load a valid COCO-style annotation file and "
+                "define a valid folder.",
                 style={"margin-left": "50px", "margin-top": "50px"},
             )
 
 
-@app.callback(Output("obj_hist_out", "children"), [Input("objs_per_img", "clickData")])
+@app.callback(
+    Output("obj_hist_out", "children"), [Input("objs_per_img", "clickData")],
+)
 def display_obj_hist(click_data):
     if click_data is not None:
         cat = click_data["points"][0]["x"]
         global objCat
         objCat = cat
         title = "Number of " + cat + "s in an image w/ " + cat + "s"
-        _, data = getObjsPerImg([cat], cocoData)
-        fig = go.Figure(
-            data=[
-                go.Histogram(
-                    x=data["number of objs"], xbins=dict(size=1), histnorm="probability"
-                )
-            ]
-        )
+        _, data = get_objs_per_img([cat], cocoData)
+        x = data["number of objs"]
+        xbins = dict(size=1)
+        norm = "probability"
+        hist = go.Histogram(x=x, xbins=xbins, histnorm=norm)
+        fig = go.Figure(data=[hist])
         fig.update_layout(
             clickmode="event+select", yaxis_title="probability", title=title
         )
+        text = "Click on bin to see images (may take up to 30 seconds)"
         return html.Div(
-            [
-                dcc.Graph(id="objs_hist", figure=fig),
-                html.Div(
-                    children="Click on bin to see images (may take up to 30 seconds)"
-                ),
-            ]
+            [dcc.Graph(id="objs_hist", figure=fig), html.Div(children=text)]
         )
 
 
-@app.callback(Output("area_hist_out", "children"), [Input("cat_areas", "clickData")])
+@app.callback(
+    Output("area_hist_out", "children"), [Input("cat_areas", "clickData")],
+)
 def display_area_hist(click_data):
     if click_data is not None:
         cat = click_data["points"][0]["x"]
         global areaCat
         areaCat = cat
         title = "Percentage area of a(n) " + cat + " in an image"
-        _, data = getProportion([cat], cocoData)
+        _, data = get_proportion([cat], cocoData)
         fig = go.Figure(
             data=[
                 go.Histogram(
@@ -140,13 +143,9 @@ def display_area_hist(click_data):
         fig.update_layout(
             clickmode="event+select", yaxis_title="probability", title=title
         )
+        text = "Click on bin to see images (may take up to 30 seconds)"
         return html.Div(
-            [
-                dcc.Graph(id="area_hist", figure=fig),
-                html.Div(
-                    children="Click on bin to see images (may take up to 30 seconds)"
-                ),
-            ]
+            [dcc.Graph(id="area_hist", figure=fig), html.Div(children=text)]
         )
 
 
@@ -158,7 +157,8 @@ def fig_to_uri(in_fig, close_all=True, **save_args):
         in_fig.clf()
         plt.close("all")
     out_img.seek(0)  # rewind file
-    encoded = base64.b64encode(out_img.read()).decode("ascii").replace("\n", "")
+    b64encoded = base64.b64encode(out_img.read())
+    encoded = b64encoded.decode("ascii").replace("\n", "")
     return "data:image/png;base64,{}".format(encoded)
 
 
@@ -166,10 +166,10 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
     # TODO: speed-up image loading and display
     global datadir
     html_imgs = []
-    cat_ids = cocoData.getCatIds(catNms=[cat])
+    cats = cocoData.getCatIds(catNms=[cat])
     print("Loading images...")
-    for imgID in tqdm(set(img_ids)):
-        im_ann = cocoData.loadImgs(ids=imgID)[0]
+    for img_id in tqdm(set(img_ids)):
+        im_ann = cocoData.loadImgs(ids=img_id)[0]
         image_filename = (
             datadir + "/" + im_ann["file_name"]
         )  # replace with your own image
@@ -177,12 +177,10 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
         plt.imshow(i)
         plt.axis("off")
         if outlying_anns is None:
-            ann_ids = cocoData.getAnnIds(imgIds=imgID, catIds=cat_ids, iscrowd=None)
+            ann_ids = cocoData.getAnnIds(imgIds=img_id, catIds=cats)
             anns = cocoData.loadAnns(ann_ids)
         else:
-            ann_ids = set(
-                cocoData.getAnnIds(imgIds=imgID, catIds=cat_ids, iscrowd=None)
-            )
+            ann_ids = set(cocoData.getAnnIds(imgIds=img_id, catIds=cats))
             ann_ids = list(ann_ids.intersection(set(outlying_anns)))
             anns = cocoData.loadAnns(ann_ids)
         cocoData.showAnns(anns)
@@ -190,7 +188,7 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
         plt.close()
         html_imgs.append(
             html.Img(
-                id={"type": "output_image", "index": str(imgID)},
+                id={"type": "output_image", "index": str(img_id)},
                 src=decoded_image,
                 **{"data-category": cat}
             )
@@ -198,20 +196,24 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
     return html_imgs
 
 
-@app.callback(Output("obj_imgs", "children"), [Input("objs_hist", "clickData")])
+@app.callback(
+    Output("obj_imgs", "children"), [Input("objs_hist", "clickData")],
+)
 def display_obj_imgs(click_data):
     if click_data is not None:
-        _, data = getObjsPerImg([objCat], cocoData)
+        _, data = get_objs_per_img([objCat], cocoData)
         num_objs = click_data["points"][0]["x"]
         img_ids = data.loc[data["number of objs"] == num_objs]["imgID"]
         html_imgs = get_html_imgs(img_ids, objCat)
         return html.Div(html_imgs)
 
 
-@app.callback(Output("area_imgs", "children"), [Input("area_hist", "clickData")])
+@app.callback(
+    Output("area_imgs", "children"), [Input("area_hist", "clickData")],
+)
 def display_area_imgs(click_data):
     if click_data is not None:
-        _, data = getProportion([areaCat], cocoData)
+        _, data = get_proportion([areaCat], cocoData)
         data_df = pd.DataFrame(data)
         point_nums = click_data["points"][0]["pointNumbers"]
         img_ids = data_df[data_df.index.isin(point_nums)]["imgID"]
@@ -219,19 +221,20 @@ def display_area_imgs(click_data):
         return html.Div(html_imgs)
 
 
-@app.callback(Output("anomaly_imgs", "children"), [Input("cat_selection", "value")])
-def display_anomalies(value):
+@app.callback(
+    Output("anomaly_imgs", "children"), [Input("cat_selection", "val")],
+)
+def display_anomalies(val):
     global analysis_df
     try:
-        outlier_img_ids = (
+        img_ids = (
             analysis_df["images w/ abnormal objects"][
-                analysis_df["category"] == value
+                analysis_df["category"] == val
             ].tolist()
         )[0]
-        outlier_ann_ids = (
-            analysis_df["abnormal objects"][analysis_df["category"] == value].tolist()
-        )[0]
-        html_imgs = get_html_imgs(outlier_img_ids, value, outlying_anns=outlier_ann_ids)
+        anns = analysis_df["abnormal objects"][analysis_df["category"] == val]
+        ann_ids = (anns.tolist())[0]
+        html_imgs = get_html_imgs(img_ids, val, outlying_anns=ann_ids)
         return html.Div(
             children=html_imgs,
             style={
@@ -252,12 +255,6 @@ def display_anomalies(value):
         )
 
 
-@app.callback(Output("loading-output-1", "children"), [Input("cat_selection", "value")])
-def input_triggers_spinner(value):
-    time.sleep(1)
-    return
-
-
 @app.callback(
     Output("anomaly_table", "children"),
     [Input({"type": "output_image", "index": ALL}, "n_clicks")],
@@ -267,19 +264,19 @@ def input_triggers_spinner(value):
     ],
 )
 def display_anomaly_table(n_clicks, cat, id):
-    global anomaly_table_df
+    global anomaly_table
     for i, val in enumerate(n_clicks):
         file = id[i]["index"]
         if (val is not None) and (
-            not anomaly_table_df["Image filename"].str.contains(file).any()
+            not anomaly_table["Image filename"].str.contains(file).any()
         ):
             new_row = {"Category": cat[i], "Image filename": file}
-            anomaly_table_df = anomaly_table_df.append(new_row, ignore_index=True)
+            anomaly_table = anomaly_table.append(new_row, ignore_index=True)
     return html.Div(
         dash_table.DataTable(
             id="anomaly_datatable",
-            columns=[{"name": i, "id": i} for i in anomaly_table_df.columns],
-            data=anomaly_table_df.to_dict("records"),
+            columns=[{"name": i, "id": i} for i in anomaly_table.columns],
+            data=anomaly_table.to_dict("records"),
             row_deletable=True,
             export_format="xlsx",
             export_headers="display",
@@ -301,10 +298,9 @@ def update_anomaly_table(prev, curr):
             set([i["Image filename"] for i in prev])
             - set([i["Image filename"] for i in curr])
         )[0]
-        global anomaly_table_df
-        anomaly_table_df = anomaly_table_df[
-            anomaly_table_df["Image filename"] != removed
-        ]
+        global anomaly_table
+        col = "Image filename"
+        anomaly_table = anomaly_table[anomaly_table[col] != removed]
 
 
 @app.callback(Output("tabs-figures", "children"), [Input("tabs", "value")])
@@ -335,7 +331,8 @@ def render_tab(tab):
                 y="number of objects",
                 title="Number of Objects per Category",
             )
-            fig2 = px.pie(analysis_df, values="number of objects", names="category")
+            val = "number of objects"
+            fig2 = px.pie(analysis_df, values=val, names="category")
             return html.Div(
                 [
                     dcc.Graph(id="cat_objs_bar", figure=fig),
@@ -350,7 +347,8 @@ def render_tab(tab):
                 y="number of images",
                 title="Number of Images per Category",
             )
-            fig2 = px.pie(analysis_df, values="number of images", names="category")
+            val = "number of images"
+            fig2 = px.pie(analysis_df, values=val, names="category")
             return html.Div(
                 [
                     dcc.Graph(id="cat_imgs_bar", figure=fig),
@@ -367,10 +365,11 @@ def render_tab(tab):
                 title=title,
             )
             fig.update_layout(clickmode="event+select")
+            text = "Click on bin to see probability distribution"
             return html.Div(
                 [
                     dcc.Graph(id="objs_per_img", figure=fig),
-                    html.Div(children="Click on bin to see probability distribution"),
+                    html.Div(children=text),
                     html.Div(id="obj_hist_out"),
                     html.Div(id="obj_imgs"),
                 ]
@@ -378,13 +377,14 @@ def render_tab(tab):
 
         elif tab == "tab-4":
             title = "Avg Proportion of Image"
-            fig = px.bar(
-                analysis_df, x="category", y="avg percentage of img", title=title
-            )
+            x = "category"
+            y = "avg percentage of img"
+            fig = px.bar(analysis_df, x=x, y=y, title=title)
+            text = "Click on bin to see probability distribution"
             return html.Div(
                 [
                     dcc.Graph(id="cat_areas", figure=fig),
-                    html.Div(children="Click on bin to see probability distribution"),
+                    html.Div(children=text),
                     html.Div(id="area_hist_out"),
                     html.Div(id="area_imgs"),
                 ]
@@ -449,15 +449,15 @@ def render_tab(tab):
         )
 
 
+h1style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
+placeholder = "Path to images (i.e. C:/Users/me/project/data/val2017)"
 app.config["suppress_callback_exceptions"] = True
 app.layout = html.Div(
     children=[
-        html.H1(
-            children="Viz EDA",
-            style={"margin-left": "50px", "margin-top": "50px", "font-size": "75px"},
-        ),
+        html.H1(children="Viz EDA", style=h1style,),
         html.Div(
-            children="Exploratory data analysis for computer vision and object recognition.",
+            children="Exploratory data analysis for computer vision and "
+            "object recognition.",
             style={"margin-left": "50px", "margin-bottom": "50px"},
         ),
         html.Hr(),
@@ -474,7 +474,7 @@ app.layout = html.Div(
             # TODO: Fix bug with textbox margins
             id="input_data_dir",
             type="text",
-            placeholder="Path to images (i.e. C:/Users/me/project/data/val2017)",
+            placeholder=placeholder,
             style={"margin-left": "10%", "margin-right": "10%"},
         ),
         html.Hr(),
@@ -486,7 +486,7 @@ app.layout = html.Div(
                         dcc.Upload(
                             id="upload-analysis-data",
                             children=dbc.Button(
-                                "Load PKL Analysis File",
+                                "Load Feather Analysis File",
                                 color="primary",
                                 block=True,
                                 outline=True,
@@ -531,9 +531,6 @@ app.layout = html.Div(
         ),
         html.Div(id="tabs-figures"),
         html.Hr(),
-        dcc.Loading(
-            id="loading-1", type="default", children=html.Div(id="loading-output-1")
-        ),
     ]
 )
 
