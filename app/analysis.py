@@ -9,21 +9,33 @@ import time
 
 
 def get_num_objs(filter_classes, coco_data):
-    # Returns number of objects of a given class
+    """
+    :param filter_classes: list of class names
+    :param coco_data: loaded coco dataset
+    :return: number of objects in the given classes
+    """
     cat_ids = coco_data.getCatIds(catNms=filter_classes)
     ann_ids = coco_data.getAnnIds(catIds=cat_ids)
     return len(ann_ids)
 
 
 def get_num_imgs(filter_classes, coco_data):
-    # Returns number of imgs with an object of a given class
+    """
+    :param filter_classes: list of class names
+    :param coco_data: loaded coco dataset
+    :return: number of imgs with an object of the given classes
+    """
     cat_ids = coco_data.getCatIds(catNms=filter_classes)
     img_ids = coco_data.getImgIds(catIds=cat_ids)
     return len(img_ids)
 
 
 def get_objs_per_img(filter_classes, coco_data):
-    # Returns average number of objects of a given class in an image
+    """
+    :param filter_classes: list of class names
+    :param coco_data: loaded coco dataset
+    :return: average number of objects of the given classes in an image
+    """
     cat_ids = coco_data.getCatIds(catNms=filter_classes)
     img_ids = coco_data.getImgIds(catIds=cat_ids)
 
@@ -39,7 +51,13 @@ def get_objs_per_img(filter_classes, coco_data):
 
 
 def get_proportion(filter_classes, coco_data, ann_ids=None):
-    # Returns average proportion an object of a given class takes up in the image
+    """
+    :param filter_classes: list of class names
+    :param coco_data: loaded coco dataset
+    :param ann_ids: list of object IDs
+    :return: average proportion an object of the given classes take up in the image, uses all objs if ann_ids is None
+    :return: df containing area of each object, along with its annID and imgID
+    """
     cat_ids = coco_data.getCatIds(catNms=filter_classes)
     img_ids = coco_data.getImgIds(catIds=cat_ids)
 
@@ -66,8 +84,14 @@ def get_proportion(filter_classes, coco_data, ann_ids=None):
 
 
 def get_seg_roughness(filter_classes, coco_data, ann_ids=None):
-    # Returns average roughness an object of a given class
-    # "Roughness" = number of segmentation vertices / area of obj
+    """
+    :param filter_classes: list of class names
+    :param coco_data: loaded coco dataset
+    :param ann_ids: list of object IDs
+    :return: average roughness an object of the given classes, uses all objs if ann_ids is None
+    :return: df containing roughness of each object, along with its annID and imgID
+             "roughness" = number of segmentation vertices / area of obj
+    """
     cat_ids = coco_data.getCatIds(catNms=filter_classes)
     img_ids = coco_data.getImgIds(catIds=cat_ids)
 
@@ -94,12 +118,20 @@ def get_seg_roughness(filter_classes, coco_data, ann_ids=None):
 
 
 def get_area(polygon):
+    """
+    :param polygon: list of (x, y) points defining a polygon
+    :return: area of the polygon
+    """
     xs = np.array([x[0] for x in polygon])
     ys = np.array([y[1] for y in polygon])
     return 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
 
 
 def segment_to_2d_array(segmentation):
+    """
+    :param segmentation: coco-style segmentation
+    :return: list of (x, y) points defining a polygon
+    """
     polygon = []
     for partition in segmentation:
         for x, y in zip(partition[::2], partition[1::2]):
@@ -108,6 +140,12 @@ def segment_to_2d_array(segmentation):
 
 
 def mask_pixels(polygon, img_dict, image_folder):
+    """
+    :param polygon: list of (x, y) points defining a polygon
+    :param img_dict: image metadata from JSON annotation data
+    :param image_folder: path to folder containing images
+    :return: loaded image and mask of object
+    """
     img = cv2.imread("{}/{}".format(image_folder, img_dict["file_name"]))
     mask = np.zeros(img.shape, dtype=np.uint8)
     polygon = np.int32(polygon)
@@ -116,6 +154,12 @@ def mask_pixels(polygon, img_dict, image_folder):
 
 
 def get_segmented_masks(filter_classes, image_folder, coco_data):
+    """
+    :param filter_classes: list of class names
+    :param image_folder: path to folder containing images
+    :param coco_data: loaded coco dataset
+    :return: loaded images, list of object masks, and object ids specified by filter_classes
+    """
     # Returns single object annotation with black background
     cat_ids = coco_data.getCatIds(catNms=filter_classes)
     img_ids = coco_data.getImgIds(catIds=cat_ids)
@@ -142,6 +186,11 @@ def get_segmented_masks(filter_classes, image_folder, coco_data):
 
 
 def get_histograms(images, masks):
+    """
+    :param images: list of loaded images
+    :param masks: list of object masks corresponding to images
+    :return: (hist_size, 3) numpy array of B, G, R histograms
+    """
     data = []
     for image, mask in tqdm(zip(images, masks)):
         img_float32 = np.float32(image)
@@ -175,6 +224,11 @@ def get_histograms(images, masks):
 
 
 def get_obj_colors(images, masks):
+    """
+    :param images: list of loaded images
+    :param masks: list of object masks corresponding to images
+    :return: list of dominant colours of each object specified by its mask
+    """
     n_colors = 4
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.1)
     flags = cv2.KMEANS_RANDOM_CENTERS
@@ -197,6 +251,11 @@ def get_obj_colors(images, masks):
 
 
 def analyze_dataset(annotation_file, image_folder):
+    """
+    :param annotation_file: path to JSON coco-style annotation file
+    :param image_folder: path to folder containing images corresponding to annotation_file
+    :return: final analysis dataframe
+    """
     coco_data = coco.COCO(annotation_file)
     cats = coco_data.loadCats(coco_data.getCatIds())
     nms = [cat["name"] for cat in cats]

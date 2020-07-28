@@ -6,6 +6,15 @@ from sklearn.decomposition import PCA
 def get_outliers(
     hist_data, colour_data, area_data, roughness_data, nn=30, contamination=0.05
 ):
+    """
+    :param hist_data: (hist_size, 3) numpy array of B, G, R histograms
+    :param colour_data: list of dominant colours of objects
+    :param area_data: df containing area of each object, along with its annID and imgID
+    :param roughness_data: df containing roughness of each object, along with its annID and imgID
+    :param nn: number of neighbours used in LOF outlier detection
+    :param contamination: estimated percentage of outliers/anomalies in the given dataset
+    :return: df containing annID, lof score (-1 for outlier, 1 for inlier), and negative outlier factor of all objects
+    """
     train = pd.DataFrame(area_data["annID"])
     train["area"] = area_data["proportion of img"]
     train["roughness"] = roughness_data["roughness of annotation"]
@@ -38,6 +47,12 @@ def get_outliers(
 
 
 def get_anomalies(filter_classes, preds, coco_data):
+    """
+    :param filter_classes: list of class names
+    :param preds: df containing annIDs, lof score (-1 for outlier, 1 for inlier), and negative outlier factor of objects
+    :param coco_data: loaded coco dataset
+    :return: imgIDs of outliers, annIDs of outliers
+    """
     cat_ids = coco_data.getCatIds(catNms=filter_classes)
     img_ids = coco_data.getImgIds(catIds=cat_ids)
     ann_ids = coco_data.getAnnIds(imgIds=img_ids, catIds=cat_ids, iscrowd=0)
