@@ -41,6 +41,7 @@ def get_outliers(hist, colour, area, roughness, nn=30, contam=0.05):
     #     pd.DataFrame(colourData, columns=["R", "G", "B"])
     # )
 
+    # annIDs should not be included in anomaly detection
     train = train.drop(["annID"], axis=1)
     lof = LocalOutlierFactor(n_neighbors=nn, contamination=contam)
     results = pd.DataFrame()
@@ -61,16 +62,13 @@ def get_anomalies(filter_classes, preds, coco_data):
     img_ids = coco_data.getImgIds(catIds=cat_ids)
     ann_ids = coco_data.getAnnIds(imgIds=img_ids, catIds=cat_ids, iscrowd=0)
 
-    outlying_objs_anns = []
-    for annId, pred in zip(ann_ids, preds):
-        if pred == -1:
-            outlying_objs_anns.append(annId)
+    outlier_ann_ids = [id for id, pred in zip(ann_ids, preds) if pred == -1]
 
-    imgs_with_outliers = []
+    outlier_img_ids = []
     for img in img_ids:
         img_anns = set(coco_data.getAnnIds(imgIds=[img]))
-        outlying_anns = set(outlying_objs_anns)
+        outlying_anns = set(outlier_ann_ids)
         if len(img_anns.intersection(outlying_anns)) > 0:
-            imgs_with_outliers.append(img)
-    print("Imgs w/ outliers: " + str(imgs_with_outliers))
-    return imgs_with_outliers, outlying_objs_anns
+            outlier_img_ids.append(img)
+    print("Imgs w/ outliers: " + str(outlier_img_ids))
+    return outlier_img_ids, outlier_ann_ids

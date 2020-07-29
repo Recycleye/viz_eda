@@ -6,7 +6,7 @@ services:
     image: vizeda:$VERSION
     container_name: vizeda
     ports:
-      - "80:5050"
+      - "80:8050"
     volumes: ['./app']
     environment:
       - TARGET=$TARGET

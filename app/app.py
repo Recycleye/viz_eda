@@ -1,4 +1,5 @@
 import base64
+import os
 from io import BytesIO
 
 import dash
@@ -16,27 +17,45 @@ from pandas_profiling import ProfileReport
 from skimage import io
 from tqdm import tqdm
 
+# CSS stylesheet for app
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
+# main dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
+# port to run app
+port = 8050
+# main dataframe containing data from analysis.py
 analysis_df = pd.DataFrame()
+# dataframe holding manually flagged images w/ anomalies
 anomaly_table = pd.DataFrame(columns=["Category", "Image filename"])
-profile = ""
-objCat = ""
-areaCat = ""
+# path to image data
 datadir = ""
+# path to annotation file
 annotation_file = ""
-cocoData = None
+# variable holding loaded coco data
+coco_data = None
+# holds raw html from pandas-profiling output
+profile = ""
+# currently selected category on object tab
+obj_cat = ""
+# currently selected category on area tab
+area_cat = ""
+# general html for exception handling
+exception_html = html.Div(
+    children="Please load a valid COCO-style annotation file and "
+    "define a valid folder.",
+    style={"margin-left": "50px", "margin-top": "50px"},
+)
 
 
 def parse_contents(contents):
-    global analysis_df, datadir, annotation_file, cocoData, profile
-    content_type, content_string = contents.split(",")
+    global analysis_df, datadir, annotation_file, coco_data, profile
+    content_type, content_string = contents.split(",", 1)
     if content_type == "data:application/json;base64":
         decoded = base64.b64decode(content_string).decode("UTF-8")
         with open("./output/output.json", "w") as file:
             file.write(decoded)
         annotation_file = "./output/output.json"
-        cocoData = coco.COCO(annotation_file)
+        coco_data = coco.COCO(annotation_file)
     elif content_type == "data:application/octet-stream;base64":
         decoded = base64.b64decode(content_string)
         try:
@@ -45,10 +64,179 @@ def parse_contents(contents):
             profile = ProfileReport(analysis_df, title="Dataset").to_html()
         except Exception as e:
             print(e)
-            return html.Div(
-                children="Please load a valid COCO-style annotation file.",
-                style={"margin-left": "50px", "margin-top": "50px"},
+            return exception_html
+
+
+def fig_to_uri(in_fig, close_all=True, **save_args):
+    # Save a figure as a URI
+    out_img = BytesIO()
+    in_fig.savefig(out_img, format="png", **save_args)
+    if close_all:
+        in_fig.clf()
+        plt.close("all")
+    out_img.seek(0)  # rewind file
+    b64encoded = base64.b64encode(out_img.read())
+    encoded = b64encoded.decode("ascii").replace("\n", "")
+    return "data:image/png;base64,{}".format(encoded)
+
+
+def get_html_imgs(img_ids, cat, outlying_anns=None):
+    # TODO: speed-up image loading and display
+    global datadir
+    html_imgs = []
+    cats = coco_data.getCatIds(catNms=[cat])
+    print("Loading images...")
+    for img_id in tqdm(set(img_ids)):
+        im_ann = coco_data.loadImgs(ids=img_id)[0]
+        image_filename = os.path.join(datadir, im_ann["file_name"])
+        i = io.imread(image_filename) / 255.0
+        plt.imshow(i)
+        plt.axis("off")
+        if outlying_anns is None:
+            ann_ids = coco_data.getAnnIds(imgIds=img_id, catIds=cats)
+            anns = coco_data.loadAnns(ann_ids)
+        else:
+            ann_ids = set(coco_data.getAnnIds(imgIds=img_id, catIds=cats))
+            ann_ids = list(ann_ids.intersection(set(outlying_anns)))
+            anns = coco_data.loadAnns(ann_ids)
+        coco_data.showAnns(anns)
+        decoded_image = fig_to_uri(plt)
+        plt.close()
+        html_imgs.append(
+            html.Img(
+                id={"type": "output_image", "index": str(img_id)},
+                src=decoded_image,
+                **{"data-category": cat}
             )
+        )
+    return html_imgs
+
+
+def render_tab0():
+    try:
+        return html.Div(
+            [html.Iframe(srcDoc=profile, height=1000, width=1500)],
+            style={
+                "width": "100%",
+                "display": "flex",
+                "align-items": "center",
+                "justify-content": "center",
+            },
+        )
+    except Exception as e:
+        print(e)
+        return exception_html
+
+
+def render_tab1():
+    fig = px.bar(
+        analysis_df,
+        x="category",
+        y="number of objects",
+        title="Number of Objects per Category",
+    )
+    val = "number of objects"
+    fig2 = px.pie(analysis_df, values=val, names="category")
+    return html.Div(
+        [
+            dcc.Graph(id="cat_objs_bar", figure=fig),
+            dcc.Graph(id="cat_objs_pie", figure=fig2),
+        ]
+    )
+
+
+def render_tab2():
+    fig = px.bar(
+        analysis_df,
+        x="category",
+        y="number of images",
+        title="Number of Images per Category",
+    )
+    val = "number of images"
+    fig2 = px.pie(analysis_df, values=val, names="category")
+    return html.Div(
+        [
+            dcc.Graph(id="cat_imgs_bar", figure=fig),
+            dcc.Graph(id="cat_imgs_pie", figure=fig2),
+        ]
+    )
+
+
+def render_tab3():
+    fig = px.bar(
+        analysis_df,
+        x="category",
+        y="avg number of objects per img",
+        title="Avg Number Of Objects per Image",
+    )
+    fig.update_layout(clickmode="event+select")
+    text = "Click on bin to see probability distribution"
+    return html.Div(
+        [
+            dcc.Graph(id="objs_per_img", figure=fig),
+            html.Div(children=text),
+            html.Div(id="obj_hist_out"),
+            html.Div(id="obj_imgs"),
+        ]
+    )
+
+
+def render_tab4():
+    fig = px.bar(
+        analysis_df,
+        x="category",
+        y="avg percentage of img",
+        title="Avg Proportion of Image",
+    )
+    text = "Click on bin to see probability distribution"
+    return html.Div(
+        [
+            dcc.Graph(id="cat_areas", figure=fig),
+            html.Div(children=text),
+            html.Div(id="area_hist_out"),
+            html.Div(id="area_imgs"),
+        ]
+    )
+
+
+def render_tab5():
+    cat_ids = coco_data.getCatIds()
+    cat_dict = coco_data.loadCats(cat_ids)
+    cat_nms = [d["name"] for d in cat_dict]
+    options = [{"label": i, "value": i} for i in cat_nms]
+    style = {"margin-top": "25px", "margin-left": "25px"}
+    return html.Div(
+        [
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            html.H3(children="Select a category", style=style),
+                            dcc.Dropdown(
+                                id="cat_selection",
+                                options=options,
+                                value=cat_nms[0],
+                                style={
+                                    "margin-top": "25px",
+                                    "margin-left": "25px",
+                                    "margin-right": "50%",
+                                },
+                            ),
+                            html.Div(id="anomaly_imgs"),
+                        ],
+                        width=6,
+                    ),
+                    dbc.Col(
+                        [
+                            html.H3(children="Flagged anomalies", style=style),
+                            html.Div(id="anomaly_table"),
+                        ],
+                        width=6,
+                    ),
+                ]
+            )
+        ]
+    )
 
 
 @app.callback(
@@ -90,11 +278,7 @@ def analyze_button(n_clicks):
             profile = ProfileReport(analysis_df, title="Dataset").to_html()
         except Exception as e:
             print(e)
-            return html.Div(
-                children="Please load a valid COCO-style annotation file and "
-                "define a valid folder.",
-                style={"margin-left": "50px", "margin-top": "50px"},
-            )
+            return exception_html
 
 
 @app.callback(
@@ -103,10 +287,10 @@ def analyze_button(n_clicks):
 def display_obj_hist(click_data):
     if click_data is not None:
         cat = click_data["points"][0]["x"]
-        global objCat
-        objCat = cat
+        global obj_cat
+        obj_cat = cat
         title = "Number of " + cat + "s in an image w/ " + cat + "s"
-        _, data = get_objs_per_img([cat], cocoData)
+        _, data = get_objs_per_img([cat], coco_data)
         x = data["number of objs"]
         xbins = dict(size=1)
         norm = "probability"
@@ -127,10 +311,10 @@ def display_obj_hist(click_data):
 def display_area_hist(click_data):
     if click_data is not None:
         cat = click_data["points"][0]["x"]
-        global areaCat
-        areaCat = cat
+        global area_cat
+        area_cat = cat
         title = "Percentage area of a(n) " + cat + " in an image"
-        _, data = get_proportion([cat], cocoData)
+        _, data = get_proportion([cat], coco_data)
         fig = go.Figure(
             data=[
                 go.Histogram(
@@ -149,62 +333,15 @@ def display_area_hist(click_data):
         )
 
 
-def fig_to_uri(in_fig, close_all=True, **save_args):
-    # Save a figure as a URI
-    out_img = BytesIO()
-    in_fig.savefig(out_img, format="png", **save_args)
-    if close_all:
-        in_fig.clf()
-        plt.close("all")
-    out_img.seek(0)  # rewind file
-    b64encoded = base64.b64encode(out_img.read())
-    encoded = b64encoded.decode("ascii").replace("\n", "")
-    return "data:image/png;base64,{}".format(encoded)
-
-
-def get_html_imgs(img_ids, cat, outlying_anns=None):
-    # TODO: speed-up image loading and display
-    global datadir
-    html_imgs = []
-    cats = cocoData.getCatIds(catNms=[cat])
-    print("Loading images...")
-    for img_id in tqdm(set(img_ids)):
-        im_ann = cocoData.loadImgs(ids=img_id)[0]
-        image_filename = (
-            datadir + "/" + im_ann["file_name"]
-        )  # replace with your own image
-        i = io.imread(image_filename) / 255.0
-        plt.imshow(i)
-        plt.axis("off")
-        if outlying_anns is None:
-            ann_ids = cocoData.getAnnIds(imgIds=img_id, catIds=cats)
-            anns = cocoData.loadAnns(ann_ids)
-        else:
-            ann_ids = set(cocoData.getAnnIds(imgIds=img_id, catIds=cats))
-            ann_ids = list(ann_ids.intersection(set(outlying_anns)))
-            anns = cocoData.loadAnns(ann_ids)
-        cocoData.showAnns(anns)
-        decoded_image = fig_to_uri(plt)
-        plt.close()
-        html_imgs.append(
-            html.Img(
-                id={"type": "output_image", "index": str(img_id)},
-                src=decoded_image,
-                **{"data-category": cat}
-            )
-        )
-    return html_imgs
-
-
 @app.callback(
     Output("obj_imgs", "children"), [Input("objs_hist", "clickData")],
 )
 def display_obj_imgs(click_data):
     if click_data is not None:
-        _, data = get_objs_per_img([objCat], cocoData)
+        _, data = get_objs_per_img([obj_cat], coco_data)
         num_objs = click_data["points"][0]["x"]
         img_ids = data.loc[data["number of objs"] == num_objs]["imgID"]
-        html_imgs = get_html_imgs(img_ids, objCat)
+        html_imgs = get_html_imgs(img_ids, obj_cat)
         return html.Div(html_imgs)
 
 
@@ -213,11 +350,11 @@ def display_obj_imgs(click_data):
 )
 def display_area_imgs(click_data):
     if click_data is not None:
-        _, data = get_proportion([areaCat], cocoData)
+        _, data = get_proportion([area_cat], coco_data)
         data_df = pd.DataFrame(data)
         point_nums = click_data["points"][0]["pointNumbers"]
         img_ids = data_df[data_df.index.isin(point_nums)]["imgID"]
-        html_imgs = get_html_imgs(img_ids, areaCat)
+        html_imgs = get_html_imgs(img_ids, area_cat)
         return html.Div(html_imgs)
 
 
@@ -249,10 +386,7 @@ def display_anomalies(val):
         )
     except Exception as e:
         print(e)
-        return html.Div(
-            children="Please load a valid COCO-style annotation file.",
-            style={"margin-left": "25px", "margin-top": "25px"},
-        )
+        return exception_html
 
 
 @app.callback(
@@ -267,6 +401,7 @@ def display_anomaly_table(n_clicks, cat, id):
     global anomaly_table
     for i, val in enumerate(n_clicks):
         file = id[i]["index"]
+        # Add filename to anomaly_table if it does not already contain the file
         if (val is not None) and (
             not anomaly_table["Image filename"].str.contains(file).any()
         ):
@@ -303,150 +438,26 @@ def update_anomaly_table(prev, curr):
         anomaly_table = anomaly_table[anomaly_table[col] != removed]
 
 
-@app.callback(Output("tabs-figures", "children"), [Input("tabs", "value")])
+@app.callback(
+    Output("tabs-figures", "children"), [Input("tabs", "value")],
+)
 def render_tab(tab):
     try:
         if tab == "tab-0":
-            try:
-                return html.Div(
-                    [html.Iframe(srcDoc=profile, height=1000, width=1500)],
-                    style={
-                        "width": "100%",
-                        "display": "flex",
-                        "align-items": "center",
-                        "justify-content": "center",
-                    },
-                )
-            except Exception as e:
-                print(e)
-                return html.Div(
-                    children="Please load a valid COCO-style annotation file.",
-                    style={"margin-left": "25px", "margin-top": "25px"},
-                )
-
+            return render_tab0()
         elif tab == "tab-1":
-            fig = px.bar(
-                analysis_df,
-                x="category",
-                y="number of objects",
-                title="Number of Objects per Category",
-            )
-            val = "number of objects"
-            fig2 = px.pie(analysis_df, values=val, names="category")
-            return html.Div(
-                [
-                    dcc.Graph(id="cat_objs_bar", figure=fig),
-                    dcc.Graph(id="cat_objs_pie", figure=fig2),
-                ]
-            )
-
+            return render_tab1()
         elif tab == "tab-2":
-            fig = px.bar(
-                analysis_df,
-                x="category",
-                y="number of images",
-                title="Number of Images per Category",
-            )
-            val = "number of images"
-            fig2 = px.pie(analysis_df, values=val, names="category")
-            return html.Div(
-                [
-                    dcc.Graph(id="cat_imgs_bar", figure=fig),
-                    dcc.Graph(id="cat_imgs_pie", figure=fig2),
-                ]
-            )
-
+            return render_tab2()
         elif tab == "tab-3":
-            title = "Avg Number Of Objects per Image"
-            fig = px.bar(
-                analysis_df,
-                x="category",
-                y="avg number of objects per img",
-                title=title,
-            )
-            fig.update_layout(clickmode="event+select")
-            text = "Click on bin to see probability distribution"
-            return html.Div(
-                [
-                    dcc.Graph(id="objs_per_img", figure=fig),
-                    html.Div(children=text),
-                    html.Div(id="obj_hist_out"),
-                    html.Div(id="obj_imgs"),
-                ]
-            )
-
+            return render_tab3()
         elif tab == "tab-4":
-            title = "Avg Proportion of Image"
-            x = "category"
-            y = "avg percentage of img"
-            fig = px.bar(analysis_df, x=x, y=y, title=title)
-            text = "Click on bin to see probability distribution"
-            return html.Div(
-                [
-                    dcc.Graph(id="cat_areas", figure=fig),
-                    html.Div(children=text),
-                    html.Div(id="area_hist_out"),
-                    html.Div(id="area_imgs"),
-                ]
-            )
-
+            return render_tab4()
         elif tab == "tab-5":
-            cat_ids = cocoData.getCatIds()
-            cat_dict = cocoData.loadCats(cat_ids)
-            cat_nms = [d["name"] for d in cat_dict]
-            options = [{"label": i, "value": i} for i in cat_nms]
-
-            return html.Div(
-                [
-                    dbc.Row(
-                        [
-                            dbc.Col(
-                                [
-                                    html.H3(
-                                        children="Select a category",
-                                        style={
-                                            "margin-top": "25px",
-                                            "margin-left": "25px",
-                                        },
-                                    ),
-                                    dcc.Dropdown(
-                                        id="cat_selection",
-                                        options=options,
-                                        value=cat_nms[0],
-                                        style={
-                                            "margin-top": "25px",
-                                            "margin-left": "25px",
-                                            "margin-right": "50%",
-                                        },
-                                    ),
-                                    html.Div(id="anomaly_imgs"),
-                                ],
-                                width=6,
-                            ),
-                            dbc.Col(
-                                [
-                                    html.H3(
-                                        children="Flagged anomalies",
-                                        style={
-                                            "margin-top": "25px",
-                                            "margin-right": "25px",
-                                        },
-                                    ),
-                                    html.Div(id="anomaly_table"),
-                                ],
-                                width=6,
-                            ),
-                        ]
-                    )
-                ]
-            )
-
+            return render_tab5()
     except Exception as e:
         print(e)
-        return html.Div(
-            children="Please load a valid COCO-style annotation file.",
-            style={"margin-left": "25px", "margin-top": "25px"},
-        )
+        return exception_html
 
 
 h1style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
@@ -536,10 +547,10 @@ app.layout = html.Div(
 
 if __name__ == "__main__":
     # Run on docker
-    # app.run_server(host="0.0.0.0", port=8050, debug=True)
+    # app.run_server(host="0.0.0.0", port=port, debug=True)
 
     # Run locally
-    app.run_server(port=8050, debug=True)
+    app.run_server(port=port, debug=True)
 
     # Only do analysis
     # annotation_file = ""
