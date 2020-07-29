@@ -14,15 +14,10 @@ import plotly.graph_objects as go
 from analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
 from dash.dependencies import ALL, Input, Output, State
 from pandas_profiling import ProfileReport
+from run import app
 from skimage import io
 from tqdm import tqdm
 
-# CSS stylesheet for app
-external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
-# main dash app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
-# port to run app
-port = 8050
 # main dataframe containing data from analysis.py
 analysis_df = pd.DataFrame()
 # dataframe holding manually flagged images w/ anomalies
@@ -460,99 +455,89 @@ def render_tab(tab):
         return exception_html
 
 
-h1style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
-placeholder = "Path to images (i.e. C:/Users/me/project/data/val2017)"
-app.config["suppress_callback_exceptions"] = True
-app.layout = html.Div(
-    children=[
-        html.H1(children="Viz EDA", style=h1style,),
-        html.Div(
-            children="Exploratory data analysis for computer vision and "
-            "object recognition.",
-            style={"margin-left": "50px", "margin-bottom": "50px"},
-        ),
-        html.Hr(),
-        dcc.Upload(
-            id="upload-annotation-data",
-            children=dbc.Button(
-                "Upload JSON Annotation File", color="primary", block=True
+def app_layout():
+    style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
+    placeholder = "Path to images (i.e. C:/Users/me/project/data/val2017)"
+    tab4_label = "Proportion of object in image"
+    layout = html.Div(
+        children=[
+            html.H1(children="Viz EDA", style=style),
+            html.Div(
+                children="Exploratory data analysis for computer vision and "
+                "object recognition.",
+                style={"margin-left": "50px", "margin-bottom": "50px"},
             ),
-            multiple=False,
-            style={"margin-left": "10%", "margin-right": "10%"},
-        ),
-        html.Hr(),
-        dbc.Input(
-            # TODO: Fix bug with textbox margins
-            id="input_data_dir",
-            type="text",
-            placeholder=placeholder,
-            style={"margin-left": "10%", "margin-right": "10%"},
-        ),
-        html.Hr(),
-        dbc.Row(
-            # TODO: Fix bug with button margins
-            [
-                dbc.Col(
-                    [
-                        dcc.Upload(
-                            id="upload-analysis-data",
-                            children=dbc.Button(
-                                "Load Feather Analysis File",
+            html.Hr(),
+            dcc.Upload(
+                id="upload-annotation-data",
+                children=dbc.Button(
+                    "Upload JSON Annotation File", color="primary", block=True
+                ),
+                multiple=False,
+                style={"margin-left": "10%", "margin-right": "10%"},
+            ),
+            html.Hr(),
+            dbc.Input(
+                # TODO: Fix bug with textbox margins
+                id="input_data_dir",
+                type="text",
+                placeholder=placeholder,
+                style={"margin-left": "10%", "margin-right": "10%"},
+            ),
+            html.Hr(),
+            dbc.Row(
+                # TODO: Fix bug with button margins
+                [
+                    dbc.Col(
+                        [
+                            dcc.Upload(
+                                id="upload-analysis-data",
+                                children=dbc.Button(
+                                    "Load Feather Analysis File",
+                                    color="primary",
+                                    block=True,
+                                    outline=True,
+                                ),
+                                multiple=False,
+                                style={"margin-left": "20%"},
+                            )
+                        ],
+                        width=4,
+                    ),
+                    dbc.Col(
+                        [
+                            dbc.Button(
+                                "Analyze",
+                                id="analyze_button",
                                 color="primary",
-                                block=True,
                                 outline=True,
-                            ),
-                            multiple=False,
-                            style={"margin-left": "20%"},
-                        )
-                    ],
-                    width=4,
-                ),
-                dbc.Col(
-                    [
-                        dbc.Button(
-                            "Analyze",
-                            id="analyze_button",
-                            color="primary",
-                            outline=True,
-                            block=True,
-                            style={"margin-right": "20%"},
-                        )
-                    ],
-                    width=4,
-                ),
-            ]
-        ),
-        html.Hr(),
-        html.Div(id="output-ann-data-upload"),
-        html.Div(id="output-analysis-data-upload"),
-        html.Div(id="output"),
-        html.Div(id="output1"),
-        dcc.Tabs(
-            id="tabs",
-            value="tab-0",
-            children=[
-                dcc.Tab(label="Overview", value="tab-0"),
-                dcc.Tab(label="Objects per class", value="tab-1"),
-                dcc.Tab(label="Images per class", value="tab-2"),
-                dcc.Tab(label="Objects per image", value="tab-3"),
-                dcc.Tab(label="Proportion of object in image", value="tab-4"),
-                dcc.Tab(label="Anomaly detection", value="tab-5"),
-            ],
-        ),
-        html.Div(id="tabs-figures"),
-        html.Hr(),
-    ]
-)
-
-if __name__ == "__main__":
-    # Run on docker
-    # app.run_server(host="0.0.0.0", port=port, debug=True)
-
-    # Run locally
-    app.run_server(port=port, debug=True)
-
-    # Only do analysis
-    # annotation_file = ""
-    # datadir = ""
-    # analyzeDataset(annotation_file, datadir)
+                                block=True,
+                                style={"margin-right": "20%"},
+                            )
+                        ],
+                        width=4,
+                    ),
+                ]
+            ),
+            html.Hr(),
+            html.Div(id="output-ann-data-upload"),
+            html.Div(id="output-analysis-data-upload"),
+            html.Div(id="output"),
+            html.Div(id="output1"),
+            dcc.Tabs(
+                id="tabs",
+                value="tab-0",
+                children=[
+                    dcc.Tab(label="Overview", value="tab-0"),
+                    dcc.Tab(label="Objects per class", value="tab-1"),
+                    dcc.Tab(label="Images per class", value="tab-2"),
+                    dcc.Tab(label="Objects per image", value="tab-3"),
+                    dcc.Tab(label=tab4_label, value="tab-4",),
+                    dcc.Tab(label="Anomaly detection", value="tab-5"),
+                ],
+            ),
+            html.Div(id="tabs-figures"),
+            html.Hr(),
+        ]
+    )
+    return layout
