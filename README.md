@@ -6,8 +6,8 @@ This document provides a tutorial on how to use the app.
 2. Input the absolute path to your image data. For example: "C:/Users/me/project/data/val2017images".
 3. Click "ANALYZE". Analyzing takes about 5-20 minutes, depending on the size of your data.
 
-## Loading from pickle
-The app outputs a pickle file after running the analysis. The "analysis.pkl" file can be loaded into the app to
+## Loading from feather
+The app outputs a feather file after running the analysis. The "analysis{datetime}" file can be loaded into the app to
 allow for quick visualization and exploratory data analysis without having to run the analysis again.
 
 ## Exploratory data analysis
