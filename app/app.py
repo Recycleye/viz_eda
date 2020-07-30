@@ -477,16 +477,12 @@ def app_layout():
                 style={"margin-left": "10%", "margin-right": "10%"},
             ),
             html.Hr(),
-            dbc.Input(
-                # TODO: Fix bug with textbox margins
-                id="input_data_dir",
-                type="text",
-                placeholder=placeholder,
+            dbc.Row(
+                dbc.Input(id="input_data_dir", type="text", placeholder=placeholder,),
                 style={"margin-left": "10%", "margin-right": "10%"},
             ),
             html.Hr(),
             dbc.Row(
-                # TODO: Fix bug with button margins
                 [
                     dbc.Col(
                         [
@@ -499,10 +495,9 @@ def app_layout():
                                     outline=True,
                                 ),
                                 multiple=False,
-                                style={"margin-left": "20%"},
                             )
                         ],
-                        width=4,
+                        width=6,
                     ),
                     dbc.Col(
                         [
@@ -512,12 +507,12 @@ def app_layout():
                                 color="primary",
                                 outline=True,
                                 block=True,
-                                style={"margin-right": "20%"},
                             )
                         ],
-                        width=4,
+                        width=6,
                     ),
-                ]
+                ],
+                style={"margin-left": "20%", "margin-right": "20%"},
             ),
             html.Hr(),
             html.Div(id="output-ann-data-upload"),
