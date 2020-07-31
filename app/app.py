@@ -14,10 +14,16 @@ import plotly.graph_objects as go
 from analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
 from dash.dependencies import ALL, Input, Output, State
 from pandas_profiling import ProfileReport
-from run import app
 from skimage import io
 from tqdm import tqdm
 
+# CSS stylesheet for app
+external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
+# main dash app
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
+app.config["suppress_callback_exceptions"] = True
+# port to run app
+port = 8050
 # main dataframe containing data from analysis.py
 analysis_df = pd.DataFrame()
 # dataframe holding manually flagged images w/ anomalies
@@ -258,6 +264,7 @@ def upload_analysis_data(contents):
 #     Output("output", "children"), [Input("input_data_dir", "value")],
 # )
 # def data_dir_input(value):
+#     print(value)
 #     global datadir
 #     datadir = value
 
@@ -456,129 +463,144 @@ def render_tab(tab):
 
 
 @app.callback(
-    Output("txtbox_data_dir", "children"),
-    [Input("input_data_dir", "value_prev")],
-    [State("input_data_dir", "value_curr")],
+    Output("data_dir_textbox", "children"),
+    [Input("input_data_dir", "value")],
+    [State("input_data_dir", "value")],
 )
 def check_datapath(prev, curr):
-    # TODO: fix bug, callback not firing
-    print(prev)
-    print(curr)
+    placeholder = "Path to images (i.e. C:/Users/me/project/data/val2017)"
     valid = (
         dbc.Input(
             id="input_data_dir",
             type="text",
-            placeholder="Path to images (i.e. C:/Users/me/project/data/val2017)",
+            placeholder=placeholder,
             valid=True,
             className="mb-3",
+            value=prev,
         ),
     )
     invalid = (
         dbc.Input(
             id="input_data_dir",
             type="text",
-            placeholder="Path to images (i.e. C:/Users/me/project/data/val2017)",
+            placeholder=placeholder,
             invalid=True,
             className="mb-3",
+            value=prev,
         ),
     )
+    if curr is None:
+        curr = ""
     if os.path.isdir(curr):
-        print("valid")
         global datadir
         datadir = curr
-        return valid
+        return html.Div(children=valid)
     else:
-        print("invalid")
-        return invalid
+        return html.Div(children=invalid)
 
 
-def app_layout():
-    style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
-    path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
-    tab4_label = "Proportion of object in image"
-    layout = html.Div(
-        children=[
-            html.H1(children="Viz EDA", style=style),
-            html.Div(
-                children="Exploratory data analysis for computer vision and "
-                "object recognition.",
-                style={"margin-left": "50px", "margin-bottom": "50px"},
+# def app_layout():
+style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
+path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
+tab4_label = "Proportion of object in image"
+app.layout = html.Div(
+    children=[
+        html.H1(children="Viz EDA", style=style),
+        html.Div(
+            children="Exploratory data analysis for computer vision and "
+            "object recognition.",
+            style={"margin-left": "50px", "margin-bottom": "50px"},
+        ),
+        html.Hr(),
+        dcc.Upload(
+            id="upload-annotation-data",
+            children=dbc.Button(
+                "Upload JSON Annotation File", color="primary", block=True
             ),
-            html.Hr(),
-            dcc.Upload(
-                id="upload-annotation-data",
-                children=dbc.Button(
-                    "Upload JSON Annotation File", color="primary", block=True
-                ),
-                multiple=False,
-                style={"margin-left": "10%", "margin-right": "10%"},
-            ),
-            html.Hr(),
-            dbc.Row(
-                [
-                    dbc.Input(
-                        id="input_data_dir",
-                        type="text",
-                        placeholder=path,
-                        className="mb-3",
-                        debounce=True,
+            multiple=False,
+            style={"margin-left": "10%", "margin-right": "10%"},
+        ),
+        html.Hr(),
+        dbc.Row(
+            [
+                dbc.Col(
+                    html.Div(
+                        id="data_dir_textbox",
+                        children=dbc.Input(
+                            id="input_data_dir",
+                            type="text",
+                            placeholder=path,
+                            className="mb-3",
+                        ),
                     ),
-                    html.Div(id="txtbox_data_dir"),
-                ],
-                style={"margin-left": "10%", "margin-right": "10%"},
-            ),
-            html.Hr(),
-            dbc.Row(
-                [
-                    dbc.Col(
-                        [
-                            dcc.Upload(
-                                id="upload-analysis-data",
-                                children=dbc.Button(
-                                    "Load Feather Analysis File",
-                                    color="primary",
-                                    block=True,
-                                    outline=True,
-                                ),
-                                multiple=False,
-                            )
-                        ],
-                        width=6,
-                    ),
-                    dbc.Col(
-                        [
-                            dbc.Button(
-                                "Analyze",
-                                id="analyze_button",
+                    width=12,
+                )
+            ],
+            style={"margin-left": "10%", "margin-right": "10%"},
+        ),
+        html.Hr(),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        dcc.Upload(
+                            id="upload-analysis-data",
+                            children=dbc.Button(
+                                "Load Feather Analysis File",
                                 color="primary",
-                                outline=True,
                                 block=True,
-                            )
-                        ],
-                        width=6,
-                    ),
-                ],
-                style={"margin-left": "20%", "margin-right": "20%"},
-            ),
-            html.Hr(),
-            html.Div(id="output-ann-data-upload"),
-            html.Div(id="output-analysis-data-upload"),
-            html.Div(id="output"),
-            html.Div(id="output1"),
-            dcc.Tabs(
-                id="tabs",
-                value="tab-0",
-                children=[
-                    dcc.Tab(label="Overview", value="tab-0"),
-                    dcc.Tab(label="Objects per class", value="tab-1"),
-                    dcc.Tab(label="Images per class", value="tab-2"),
-                    dcc.Tab(label="Objects per image", value="tab-3"),
-                    dcc.Tab(label=tab4_label, value="tab-4",),
-                    dcc.Tab(label="Anomaly detection", value="tab-5"),
-                ],
-            ),
-            html.Div(id="tabs-figures"),
-            html.Hr(),
-        ]
-    )
-    return layout
+                                outline=True,
+                            ),
+                            multiple=False,
+                        )
+                    ],
+                    width=6,
+                ),
+                dbc.Col(
+                    [
+                        dbc.Button(
+                            "Analyze",
+                            id="analyze_button",
+                            color="primary",
+                            outline=True,
+                            block=True,
+                        )
+                    ],
+                    width=6,
+                ),
+            ],
+            style={"margin-left": "20%", "margin-right": "20%"},
+        ),
+        html.Hr(),
+        html.Div(id="output-ann-data-upload"),
+        html.Div(id="output-analysis-data-upload"),
+        html.Div(id="output"),
+        html.Div(id="output1"),
+        dcc.Tabs(
+            id="tabs",
+            value="tab-0",
+            children=[
+                dcc.Tab(label="Overview", value="tab-0"),
+                dcc.Tab(label="Objects per class", value="tab-1"),
+                dcc.Tab(label="Images per class", value="tab-2"),
+                dcc.Tab(label="Objects per image", value="tab-3"),
+                dcc.Tab(label=tab4_label, value="tab-4",),
+                dcc.Tab(label="Anomaly detection", value="tab-5"),
+            ],
+        ),
+        html.Div(id="tabs-figures"),
+        html.Hr(),
+    ]
+)
+
+if __name__ == "__main__":
+    # Run on docker
+    # app.run_server(host="0.0.0.0", port=port, debug=True)
+
+    # Run locally
+    app.run_server(port=port, debug=True)
+
+    # Only do analysis
+    # annotation_file = ""
+    # datadir = ""
+    # analyzeDataset(annotation_file, datadir)
