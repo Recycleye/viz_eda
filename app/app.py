@@ -254,12 +254,12 @@ def upload_analysis_data(contents):
         return children
 
 
-@app.callback(
-    Output("output", "children"), [Input("input_data_dir", "value")],
-)
-def data_dir_input(value):
-    global datadir
-    datadir = value
+# @app.callback(
+#     Output("output", "children"), [Input("input_data_dir", "value")],
+# )
+# def data_dir_input(value):
+#     global datadir
+#     datadir = value
 
 
 @app.callback(
@@ -455,9 +455,46 @@ def render_tab(tab):
         return exception_html
 
 
+@app.callback(
+    Output("txtbox_data_dir", "children"),
+    [Input("input_data_dir", "value_prev")],
+    [State("input_data_dir", "value_curr")],
+)
+def check_datapath(prev, curr):
+    # TODO: fix bug, callback not firing
+    print(prev)
+    print(curr)
+    valid = (
+        dbc.Input(
+            id="input_data_dir",
+            type="text",
+            placeholder="Path to images (i.e. C:/Users/me/project/data/val2017)",
+            valid=True,
+            className="mb-3",
+        ),
+    )
+    invalid = (
+        dbc.Input(
+            id="input_data_dir",
+            type="text",
+            placeholder="Path to images (i.e. C:/Users/me/project/data/val2017)",
+            invalid=True,
+            className="mb-3",
+        ),
+    )
+    if os.path.isdir(curr):
+        print("valid")
+        global datadir
+        datadir = curr
+        return valid
+    else:
+        print("invalid")
+        return invalid
+
+
 def app_layout():
     style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
-    placeholder = "Path to images (i.e. C:/Users/me/project/data/val2017)"
+    path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
     tab4_label = "Proportion of object in image"
     layout = html.Div(
         children=[
@@ -478,7 +515,16 @@ def app_layout():
             ),
             html.Hr(),
             dbc.Row(
-                dbc.Input(id="input_data_dir", type="text", placeholder=placeholder,),
+                [
+                    dbc.Input(
+                        id="input_data_dir",
+                        type="text",
+                        placeholder=path,
+                        className="mb-3",
+                        debounce=True,
+                    ),
+                    html.Div(id="txtbox_data_dir"),
+                ],
                 style={"margin-left": "10%", "margin-right": "10%"},
             ),
             html.Hr(),
