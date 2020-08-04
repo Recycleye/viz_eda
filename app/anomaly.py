@@ -50,15 +50,14 @@ def get_outliers(hist, colour, area, roughness, nn=30, contam=0.05):
     return results
 
 
-def get_anomalies(filter_classes, preds, coco_data):
+def get_anomalies(cat_ids, preds, coco_data):
     """
-    :param filter_classes: list of class names
+    :param cat_ids: list of category IDs
     :param preds: df containing annIDs, lof score
     (-1 for outlier, 1 for inlier), and negative outlier factor of objects
     :param coco_data: loaded coco dataset
     :return: imgIDs of outliers, annIDs of outliers
     """
-    cat_ids = coco_data.getCatIds(catNms=filter_classes)
     img_ids = coco_data.getImgIds(catIds=cat_ids)
     ann_ids = coco_data.getAnnIds(imgIds=img_ids, catIds=cat_ids, iscrowd=0)
 

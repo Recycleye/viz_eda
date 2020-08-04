@@ -88,7 +88,7 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
     cats = coco_data.getCatIds(catNms=[cat])
     print("Loading images...")
     for img_id in tqdm(set(img_ids)):
-        im_ann = coco_data.loadImgs(ids=img_id)[0]
+        im_ann = coco_data.loadImgs(ids=int(img_id))[0]
         image_filename = os.path.join(datadir, im_ann["file_name"])
         i = io.imread(image_filename) / 255.0
         plt.imshow(i)
@@ -260,13 +260,41 @@ def upload_analysis_data(contents):
         return children
 
 
-# @app.callback(
-#     Output("output", "children"), [Input("input_data_dir", "value")],
-# )
-# def data_dir_input(value):
-#     print(value)
-#     global datadir
-#     datadir = value
+@app.callback(
+    Output("data_dir_textbox", "children"),
+    [Input("input_data_dir", "value")],
+    [State("input_data_dir", "value")],
+)
+def check_datapath(prev, curr):
+    placeholder = "Path to images (i.e. C:/Users/me/project/data/val2017)"
+    valid = (
+        dbc.Input(
+            id="input_data_dir",
+            type="text",
+            placeholder=placeholder,
+            valid=True,
+            className="mb-3",
+            value=prev,
+        ),
+    )
+    invalid = (
+        dbc.Input(
+            id="input_data_dir",
+            type="text",
+            placeholder=placeholder,
+            invalid=True,
+            className="mb-3",
+            value=prev,
+        ),
+    )
+    if curr is None:
+        curr = ""
+    if os.path.isdir(curr):
+        global datadir
+        datadir = curr
+        return html.Div(children=valid)
+    else:
+        return html.Div(children=invalid)
 
 
 @app.callback(
@@ -291,8 +319,10 @@ def display_obj_hist(click_data):
         cat = click_data["points"][0]["x"]
         global obj_cat
         obj_cat = cat
+        cat_ids = coco_data.getCatIds(catNms=cat)
+        img_ids = coco_data.getImgIds(catIds=cat_ids)
         title = "Number of " + cat + "s in an image w/ " + cat + "s"
-        _, data = get_objs_per_img([cat], coco_data)
+        _, data = get_objs_per_img(cat_ids, img_ids, coco_data)
         x = data["number of objs"]
         xbins = dict(size=1)
         norm = "probability"
@@ -315,13 +345,15 @@ def display_area_hist(click_data):
         cat = click_data["points"][0]["x"]
         global area_cat
         area_cat = cat
+        cat_ids = coco_data.getCatIds(catNms=cat)
+        img_ids = coco_data.getImgIds(catIds=cat_ids)
         title = "Percentage area of a(n) " + cat + " in an image"
-        _, data = get_proportion([cat], coco_data)
+        _, data = get_proportion(cat_ids, img_ids, coco_data)
         fig = go.Figure(
             data=[
                 go.Histogram(
                     x=data["proportion of img"],
-                    xbins=dict(size=0.05),
+                    xbins=dict(size=0.01),
                     histnorm="probability",
                 )
             ]
@@ -340,7 +372,10 @@ def display_area_hist(click_data):
 )
 def display_obj_imgs(click_data):
     if click_data is not None:
-        _, data = get_objs_per_img([obj_cat], coco_data)
+        global obj_cat
+        cat_ids = coco_data.getCatIds(catNms=obj_cat)
+        img_ids = coco_data.getImgIds(catIds=cat_ids)
+        _, data = get_objs_per_img(cat_ids, img_ids, coco_data)
         num_objs = click_data["points"][0]["x"]
         img_ids = data.loc[data["number of objs"] == num_objs]["imgID"]
         html_imgs = get_html_imgs(img_ids, obj_cat)
@@ -352,7 +387,10 @@ def display_obj_imgs(click_data):
 )
 def display_area_imgs(click_data):
     if click_data is not None:
-        _, data = get_proportion([area_cat], coco_data)
+        global area_cat
+        cat_ids = coco_data.getCatIds(catNms=area_cat)
+        img_ids = coco_data.getImgIds(catIds=cat_ids)
+        _, data = get_proportion(cat_ids, img_ids, coco_data)
         data_df = pd.DataFrame(data)
         point_nums = click_data["points"][0]["pointNumbers"]
         img_ids = data_df[data_df.index.isin(point_nums)]["imgID"]
@@ -361,19 +399,19 @@ def display_area_imgs(click_data):
 
 
 @app.callback(
-    Output("anomaly_imgs", "children"), [Input("cat_selection", "val")],
+    Output("anomaly_imgs", "children"), [Input("cat_selection", "value")],
 )
-def display_anomalies(val):
+def display_anomalies(value):
     global analysis_df
     try:
         img_ids = (
             analysis_df["images w/ abnormal objects"][
-                analysis_df["category"] == val
+                analysis_df["category"] == value
             ].tolist()
         )[0]
-        anns = analysis_df["abnormal objects"][analysis_df["category"] == val]
+        anns = analysis_df["abnormal objects"][analysis_df["category"] == value]
         ann_ids = (anns.tolist())[0]
-        html_imgs = get_html_imgs(img_ids, val, outlying_anns=ann_ids)
+        html_imgs = get_html_imgs(img_ids, value, outlying_anns=ann_ids)
         return html.Div(
             children=html_imgs,
             style={
@@ -462,44 +500,6 @@ def render_tab(tab):
         return exception_html
 
 
-@app.callback(
-    Output("data_dir_textbox", "children"),
-    [Input("input_data_dir", "value")],
-    [State("input_data_dir", "value")],
-)
-def check_datapath(prev, curr):
-    placeholder = "Path to images (i.e. C:/Users/me/project/data/val2017)"
-    valid = (
-        dbc.Input(
-            id="input_data_dir",
-            type="text",
-            placeholder=placeholder,
-            valid=True,
-            className="mb-3",
-            value=prev,
-        ),
-    )
-    invalid = (
-        dbc.Input(
-            id="input_data_dir",
-            type="text",
-            placeholder=placeholder,
-            invalid=True,
-            className="mb-3",
-            value=prev,
-        ),
-    )
-    if curr is None:
-        curr = ""
-    if os.path.isdir(curr):
-        global datadir
-        datadir = curr
-        return html.Div(children=valid)
-    else:
-        return html.Div(children=invalid)
-
-
-# def app_layout():
 style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
 path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
 tab4_label = "Proportion of object in image"

@@ -244,7 +244,7 @@ def analyze_dataset(annotation_file, imgs_path):
         ann_ids = coco_data.getAnnIds(catIds=cat_ids)
 
         print("Loading object masks...")
-        imgs, masks, anns = get_obj_masks(cat, img_ids, imgs_path, coco_data)
+        imgs, masks, anns = get_obj_masks(cat_ids, img_ids, imgs_path, coco_data)
 
         print("Getting number of objects...")
         num_objs = len(ann_ids)
@@ -253,13 +253,13 @@ def analyze_dataset(annotation_file, imgs_path):
         num_imgs = len(img_ids)
 
         print("Getting average number of objects per images...")
-        avg_objs_per_img, _ = get_objs_per_img(cat, img_ids, coco_data)
+        avg_objs_per_img, _ = get_objs_per_img(cat_ids, img_ids, coco_data)
 
         print("Getting average area...")
-        avg_area, area_data = get_proportion(cat, img_ids, coco_data)
+        avg_area, area_data = get_proportion(cat_ids, img_ids, coco_data)
 
         print("Getting average roughness of segmentation...")
-        avg_roughness, roughness = get_roughness(cat, img_ids, coco_data)
+        avg_roughness, roughness = get_roughness(cat_ids, img_ids, coco_data)
 
         # print("Getting object histograms...")
         # hist_data = getHistograms(imgs, masks)
@@ -271,10 +271,10 @@ def analyze_dataset(annotation_file, imgs_path):
 
         print("Getting abnormal objects...")
         preds_df = get_outliers(
-            hist_data, colour_data, area_data, roughness, contamination=0.05
+            hist_data, colour_data, area_data, roughness, contam=0.05
         )
         outlier_img_ids, outlier_ann_ids = get_anomalies(
-            cat, preds_df["lof"], coco_data
+            cat_ids, preds_df["lof"], coco_data
         )
         print("Done!")
         print()
