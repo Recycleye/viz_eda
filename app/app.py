@@ -17,6 +17,9 @@ from pandas_profiling import ProfileReport
 from skimage import io
 from tqdm import tqdm
 
+# import mpld3
+
+
 # CSS stylesheet for app
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 # main dash app
@@ -72,9 +75,6 @@ def fig_to_uri(in_fig, close_all=True, **save_args):
     # Save a figure as a URI
     out_img = BytesIO()
     in_fig.savefig(out_img, format="png", **save_args)
-    if close_all:
-        in_fig.clf()
-        plt.close("all")
     out_img.seek(0)  # rewind file
     b64encoded = base64.b64encode(out_img.read())
     encoded = b64encoded.decode("ascii").replace("\n", "")
@@ -95,11 +95,10 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
         plt.axis("off")
         if outlying_anns is None:
             ann_ids = coco_data.getAnnIds(imgIds=img_id, catIds=cats)
-            anns = coco_data.loadAnns(ann_ids)
         else:
             ann_ids = set(coco_data.getAnnIds(imgIds=img_id, catIds=cats))
             ann_ids = list(ann_ids.intersection(set(outlying_anns)))
-            anns = coco_data.loadAnns(ann_ids)
+        anns = coco_data.loadAnns(ann_ids)
         coco_data.showAnns(anns)
         decoded_image = fig_to_uri(plt)
         plt.close()
@@ -142,7 +141,8 @@ def render_tab1():
         [
             dcc.Graph(id="cat_objs_bar", figure=fig),
             dcc.Graph(id="cat_objs_pie", figure=fig2),
-        ]
+        ],
+        style={"margin-left": "10%", "margin-right": "10%"},
     )
 
 
@@ -159,7 +159,8 @@ def render_tab2():
         [
             dcc.Graph(id="cat_imgs_bar", figure=fig),
             dcc.Graph(id="cat_imgs_pie", figure=fig2),
-        ]
+        ],
+        style={"margin-left": "10%", "margin-right": "10%"},
     )
 
 
@@ -178,7 +179,8 @@ def render_tab3():
             html.Div(children=text),
             html.Div(id="obj_hist_out"),
             html.Div(id="obj_imgs"),
-        ]
+        ],
+        style={"margin-left": "10%", "margin-right": "10%"},
     )
 
 
@@ -196,7 +198,8 @@ def render_tab4():
             html.Div(children=text),
             html.Div(id="area_hist_out"),
             html.Div(id="area_imgs"),
-        ]
+        ],
+        style={"margin-left": "10%", "margin-right": "10%"},
     )
 
 
@@ -236,7 +239,8 @@ def render_tab5():
                     ),
                 ]
             )
-        ]
+        ],
+        style={"margin-left": "10%", "margin-right": "10%"},
     )
 
 
@@ -415,7 +419,8 @@ def display_anomalies(value):
         return html.Div(
             children=html_imgs,
             style={
-                "margin-left": "25px",
+                "margin-left": "5%",
+                "margin-right": "5%",
                 "margin-top": "25px",
                 "overflow": "scroll",
                 "border": "2px black solid",
@@ -456,7 +461,7 @@ def display_anomaly_table(n_clicks, cat, id):
             export_format="xlsx",
             export_headers="display",
         ),
-        style={"margin-right": "100px"},
+        style={"margin-left": "5%", "margin-right": "5%"},
     )
 
 

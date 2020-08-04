@@ -12,6 +12,10 @@ allow for quick visualization and exploratory data analysis without having to ru
 
 ## Exploratory data analysis
 
+### Overview
+Pandas profiling visualization of overall analysis table. Variables include objects per class, images per class, objects
+per image, proportion of object in image, and roughness of segmentation.
+
 ### Objects per class
 The bar graph displays the number of objects in the dataset provided, sorted by category. The pie chart shows a
 breakdown of the proportion of objects in each category.
