@@ -114,13 +114,18 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
 
 def render_tab0():
     try:
+        if profile == "":
+            return exception_html
         return html.Div(
-            [html.Iframe(srcDoc=profile, height=1000, width=1500)],
+            children=[
+                html.Iframe(srcDoc=profile, style={"width": "100%", "height": "1500px"})
+            ],
             style={
-                "width": "100%",
                 "display": "flex",
                 "align-items": "center",
                 "justify-content": "center",
+                "margin-left": "5%",
+                "margin-right": "5%",
             },
         )
     except Exception as e:
@@ -255,16 +260,6 @@ def upload_ann_data(contents):
 
 
 @app.callback(
-    Output("output-analysis-data-upload", "children"),
-    [Input("upload-analysis-data", "contents")],
-)
-def upload_analysis_data(contents):
-    if contents is not None:
-        children = parse_contents(contents)
-        return children
-
-
-@app.callback(
     Output("data_dir_textbox", "children"),
     [Input("input_data_dir", "value")],
     [State("input_data_dir", "value")],
@@ -302,7 +297,17 @@ def check_datapath(prev, curr):
 
 
 @app.callback(
-    Output("output1", "children"), [Input("analyze_button", "n_clicks")],
+    Output("output-analysis-data-upload", "children"),
+    [Input("upload-analysis-data", "contents")],
+)
+def upload_analysis_data(contents):
+    if contents is not None:
+        children = parse_contents(contents)
+        return children
+
+
+@app.callback(
+    Output("output-analysis-btn", "children"), [Input("analyze_button", "n_clicks")],
 )
 def analyze_button(n_clicks):
     global datadir, annotation_file, analysis_df, profile
@@ -313,6 +318,28 @@ def analyze_button(n_clicks):
         except Exception as e:
             print(e)
             return exception_html
+
+
+@app.callback(
+    Output("tabs-figures", "children"), [Input("tabs", "value")],
+)
+def render_tab(tab):
+    try:
+        if tab == "tab-0":
+            return render_tab0()
+        elif tab == "tab-1":
+            return render_tab1()
+        elif tab == "tab-2":
+            return render_tab2()
+        elif tab == "tab-3":
+            return render_tab3()
+        elif tab == "tab-4":
+            return render_tab4()
+        elif tab == "tab-5":
+            return render_tab5()
+    except Exception as e:
+        print(e)
+        return exception_html
 
 
 @app.callback(
@@ -483,28 +510,6 @@ def update_anomaly_table(prev, curr):
         anomaly_table = anomaly_table[anomaly_table[col] != removed]
 
 
-@app.callback(
-    Output("tabs-figures", "children"), [Input("tabs", "value")],
-)
-def render_tab(tab):
-    try:
-        if tab == "tab-0":
-            return render_tab0()
-        elif tab == "tab-1":
-            return render_tab1()
-        elif tab == "tab-2":
-            return render_tab2()
-        elif tab == "tab-3":
-            return render_tab3()
-        elif tab == "tab-4":
-            return render_tab4()
-        elif tab == "tab-5":
-            return render_tab5()
-    except Exception as e:
-        print(e)
-        return exception_html
-
-
 style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
 path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
 tab4_label = "Proportion of object in image"
@@ -579,8 +584,7 @@ app.layout = html.Div(
         html.Hr(),
         html.Div(id="output-ann-data-upload"),
         html.Div(id="output-analysis-data-upload"),
-        html.Div(id="output"),
-        html.Div(id="output1"),
+        html.Div(id="output-analysis-btn"),
         dcc.Tabs(
             id="tabs",
             value="tab-0",
