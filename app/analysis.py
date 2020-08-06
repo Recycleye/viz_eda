@@ -261,6 +261,7 @@ def analyze_dataset(annotation_file, imgs_path):
         print("Getting average roughness of segmentation...")
         avg_roughness, roughness = get_roughness(cat_ids, img_ids, coco_data)
 
+        # TODO: find better method for colour analysis
         # print("Getting object histograms...")
         # hist_data = getHistograms(imgs, masks)
         hist_data = None

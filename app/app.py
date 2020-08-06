@@ -52,6 +52,7 @@ exception_html = html.Div(
 
 
 def parse_contents(contents):
+    # TODO: add pipeline for loading/processing datasets in separate folders
     global analysis_df, datadir, annotation_file, coco_data, profile
     content_type, content_string = contents.split(",", 1)
     if content_type == "data:application/json;base64":
@@ -301,6 +302,7 @@ def check_datapath(prev, curr):
     [Input("upload-analysis-data", "contents")],
 )
 def upload_analysis_data(contents):
+    # TODO: callback triggers tab-0 rendering
     if contents is not None:
         children = parse_contents(contents)
         return children
@@ -310,6 +312,7 @@ def upload_analysis_data(contents):
     Output("output-analysis-btn", "children"), [Input("analyze_button", "n_clicks")],
 )
 def analyze_button(n_clicks):
+    # TODO: callback triggers tab-0 rendering
     global datadir, annotation_file, analysis_df, profile
     if n_clicks is not None and datadir != "" and annotation_file != "":
         try:
