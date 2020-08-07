@@ -236,9 +236,9 @@ def analyze_dataset(annotation_file, imgs_path):
     cats = coco_data.loadCats(coco_data.getCatIds())
     names = [cat["name"] for cat in cats]
     data = []
-    for cat_name, cat in enumerate(names):
+    for idx, cat in enumerate(names):
         cat = [cat]
-        print(cat[0] + ": " + str(cat_name) + "/" + str(len(names)))
+        print(cat[0] + ": " + str(idx + 1) + "/" + str(len(names)))
         cat_ids = coco_data.getCatIds(catNms=cat)
         img_ids = coco_data.getImgIds(catIds=cat_ids)
         ann_ids = coco_data.getAnnIds(catIds=cat_ids)

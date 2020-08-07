@@ -1,5 +1,6 @@
 import base64
 import os
+import shutil
 from io import BytesIO
 
 import dash
@@ -12,13 +13,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
+from coco_assistant import COCO_Assistant
 from dash.dependencies import ALL, Input, Output, State
 from pandas_profiling import ProfileReport
 from skimage import io
 from tqdm import tqdm
-
-# import mpld3
-
 
 # CSS stylesheet for app
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
@@ -27,6 +26,8 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 app.config["suppress_callback_exceptions"] = True
 # port to run app
 port = 8050
+# flag for batch analysis
+batch_analysis = False
 # main dataframe containing data from analysis.py
 analysis_df = pd.DataFrame()
 # dataframe holding manually flagged images w/ anomalies
@@ -51,8 +52,43 @@ exception_html = html.Div(
 )
 
 
+def get_datasets(data_dir):
+    subfolders = [f.path for f in os.scandir(data_dir) if f.is_dir()]
+    dataset = []
+    for folder in subfolders:
+        anns, imgs = [f.path for f in os.scandir(folder) if f.is_dir()]
+        for file in os.listdir(anns):
+            if file.endswith(".json") and "instances" in file:
+                file = os.path.join(anns, file)
+                dataset.append((file, imgs))
+    return dataset
+
+
+def merge_datasets(dataset):
+    # Specify image and annotation directories
+    ann_dir = "./temp/annotations"
+    img_dir = "./temp/images"
+    os.mkdir("./temp")
+    os.mkdir(img_dir)
+    os.mkdir(ann_dir)
+
+    for idx, (anns, imgs) in enumerate(dataset):
+        print(anns)
+        file = str(idx) + ".json"
+        anns_loc = os.path.join(ann_dir, file)
+        shutil.copy(anns, anns_loc)
+
+        print(imgs)
+        imgs_loc = os.path.join(img_dir, str(idx))
+        shutil.copytree(imgs, imgs_loc)
+
+    # Create COCO_Assistant object and merge
+    # TODO: find a fix bug in merge
+    cas = COCO_Assistant(img_dir, ann_dir)
+    cas.merge(merge_images=True)
+
+
 def parse_contents(contents):
-    # TODO: add pipeline for loading/processing datasets in separate folders
     global analysis_df, datadir, annotation_file, coco_data, profile
     content_type, content_string = contents.split(",", 1)
     if content_type == "data:application/json;base64":
@@ -72,7 +108,7 @@ def parse_contents(contents):
             return exception_html
 
 
-def fig_to_uri(in_fig, close_all=True, **save_args):
+def fig_to_uri(in_fig, **save_args):
     # Save a figure as a URI
     out_img = BytesIO()
     in_fig.savefig(out_img, format="png", **save_args)
@@ -298,6 +334,15 @@ def check_datapath(prev, curr):
 
 
 @app.callback(
+    Output("checkbox_output", "children"), [Input("batch_checkbox", "checked")],
+)
+def on_form_change(checkbox_checked):
+    if checkbox_checked:
+        global batch_analysis
+        batch_analysis = True
+
+
+@app.callback(
     Output("output-analysis-data-upload", "children"),
     [Input("upload-analysis-data", "contents")],
 )
@@ -313,10 +358,16 @@ def upload_analysis_data(contents):
 )
 def analyze_button(n_clicks):
     # TODO: callback triggers tab-0 rendering
-    global datadir, annotation_file, analysis_df, profile
-    if n_clicks is not None and datadir != "" and annotation_file != "":
+    global datadir, annotation_file, analysis_df, profile, batch_analysis
+    if n_clicks is not None:
+        if batch_analysis:
+            datasets = get_datasets(datadir)
+            merge_datasets(datasets)
+            annotation_file = "./temp/results/merged/annotations/merged.json"
+            datadir = "./temp/results/merged/images"
         try:
             analysis_df = analyze_dataset(annotation_file, datadir)
+            print(annotation_file)
             profile = ProfileReport(analysis_df, title="Dataset").to_html()
         except Exception as e:
             print(e)
@@ -546,8 +597,26 @@ app.layout = html.Div(
                             className="mb-3",
                         ),
                     ),
-                    width=12,
-                )
+                    width=9,
+                ),
+                dbc.Col(
+                    html.Div(
+                        dbc.FormGroup(
+                            [
+                                dbc.Checkbox(
+                                    id="batch_checkbox", className="form-check-input"
+                                ),
+                                dbc.Label(
+                                    "batch analysis",
+                                    html_for="batch_checkbox",
+                                    className="form-check-label",
+                                ),
+                            ],
+                            check=True,
+                        ),
+                    ),
+                    width=3,
+                ),
             ],
             style={"margin-left": "10%", "margin-right": "10%"},
         ),
@@ -585,9 +654,10 @@ app.layout = html.Div(
             style={"margin-left": "20%", "margin-right": "20%"},
         ),
         html.Hr(),
-        html.Div(id="output-ann-data-upload"),
-        html.Div(id="output-analysis-data-upload"),
-        html.Div(id="output-analysis-btn"),
+        html.Div(id="output-ann-data-upload", style={"display": "none"}),
+        html.Div(id="output-analysis-data-upload", style={"display": "none"}),
+        html.Div(id="output-analysis-btn", style={"display": "none"}),
+        html.Div(id="checkbox_output", style={"display": "none"}),
         dcc.Tabs(
             id="tabs",
             value="tab-0",
