@@ -12,6 +12,31 @@ This document provides a tutorial on how to use the app.
 The app outputs a feather file after running the analysis. The "analysis{datetime}" file can be loaded into the app to
 allow for quick visualization and exploratory data analysis without having to run the analysis again.
 
+## Batch analysis
+The app can process multiple datasets where multiple annotations and images are merged before analysis. Your data
+directory should look as follows:
+```markdown
+Example:
+data
+├── apple
+│   ├── annotations
+│   │   ├── instances.json
+│   ├── images
+│
+├── banana
+│   ├── annotations
+│   │   ├── instances.json
+│   ├── images
+│
+├── orange
+│   ├── annotations
+│   │   ├── instances.json
+│   ├── images
+│...
+```
+A temporary folder with the merged dataset (images and annotation) can be found in `./temp/results/merged`. The merged
+JSON and image folder can be kept for future dataset analysis without batch processing.
+
 ## Exploratory data analysis
 
 ### Overview

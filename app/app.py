@@ -25,7 +25,7 @@ external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 app.config["suppress_callback_exceptions"] = True
 # port to run app
-port = 8050
+port = 80
 # flag for batch analysis
 batch_analysis = False
 # main dataframe containing data from analysis.py

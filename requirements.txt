@@ -10,4 +10,4 @@ opencv-python~=4.2.0.34
 scikit-learn~=0.21.3
 pycocotools~=2.0
 pandas_profiling~=2.8.0
-pyarrow~=1.0.0
+coco_assistant~=0.3.1
