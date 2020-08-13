@@ -3,3 +3,4 @@ data/*
 .gitignore
 output/*
 /temp/
+blob_data/*
