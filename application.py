@@ -12,18 +12,20 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
 from coco_assistant import COCO_Assistant
 from dash.dependencies import ALL, Input, Output, State
 from pandas_profiling import ProfileReport
 from skimage import io
 from tqdm import tqdm
 
+from app.analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
+
 # CSS stylesheet for app
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 # main dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 app.config["suppress_callback_exceptions"] = True
+application = app.server
 # port to run app
 port = 80
 # flag for batch analysis
@@ -677,7 +679,7 @@ app.layout = html.Div(
 
 if __name__ == "__main__":
     # Run on docker
-    # app.run_server(host="0.0.0.0", port=port, debug=True)
+    # application.run(host="0.0.0.0", port=port, debug=True)
 
     # Run locally
     app.run_server(port=port, debug=True)

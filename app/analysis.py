@@ -5,9 +5,10 @@ import time
 import cv2
 import numpy as np
 import pandas as pd
-from anomaly import get_anomalies, get_outliers
 from pycocotools import coco as coco
 from tqdm import tqdm
+
+from app.anomaly import get_anomalies, get_outliers
 
 
 def get_objs_per_img(cat_ids, img_ids, coco_data):

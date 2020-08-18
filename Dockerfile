@@ -12,11 +12,16 @@ COPY requirements.txt /
 RUN pip install numpy
 RUN pip install -r /requirements.txt
 
-COPY ./app /app
-WORKDIR "/app"
-EXPOSE 8050
+#COPY ./app /app
+#WORKDIR "/app"
+#EXPOSE 8050
+#
+#ENTRYPOINT [ "python3" ]
+#CMD ["application.py"]
 
-#ENV PATH=$PATH:/app
-#ENV PYTHONPATH /app
-ENTRYPOINT [ "python3" ]
-CMD ["app.py"]
+RUN mkdir /app
+WORKDIR /app
+ADD . /app/
+
+ENTRYPOINT [ "python" ]
+CMD ["application.py"]
