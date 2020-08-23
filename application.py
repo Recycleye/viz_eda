@@ -19,6 +19,7 @@ from skimage import io
 from tqdm import tqdm
 
 from app.analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
+from app.blob import download_blobs, get_blob_datasets, get_blobs
 
 # CSS stylesheet for app
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
@@ -363,10 +364,39 @@ def analyze_button(n_clicks):
     global datadir, annotation_file, analysis_df, profile, batch_analysis
     if n_clicks is not None:
         if batch_analysis:
-            datasets = get_datasets(datadir)
+            datasets = get_blob_datasets(datadir)
             merge_datasets(datasets)
             annotation_file = "./temp/results/merged/annotations/merged.json"
             datadir = "./temp/results/merged/images"
+        try:
+            analysis_df = analyze_dataset(annotation_file, datadir)
+            print(annotation_file)
+            profile = ProfileReport(analysis_df, title="Dataset").to_html()
+        except Exception as e:
+            print(e)
+            return exception_html
+
+
+@app.callback(
+    Output("output-analysis-btn-online", "children"),
+    [Input("analyze_button_online", "n_clicks")],
+    [State("dataset_selection", "value")],
+)
+def analyze_button_online(n_clicks, dataset):
+    global datadir, annotation_file, analysis_df, profile, batch_analysis
+    if n_clicks is not None:
+        # if batch_analysis:
+        #     datasets = get_blob_datasets(datadir)
+        #     merge_datasets(datasets)
+        #     annotation_file = "./temp/results/merged/annotations/merged.json"
+        #     datadir = "./temp/results/merged/images"
+        blob_list = get_blobs(dataset)
+        blob_names = download_blobs(blob_list)
+        annotation_file = [i for i in blob_names if ".json" in i][0]
+        imgs = [i for i in blob_names if ".jpg" in i or ".png" in i]
+        datadir = os.path.dirname(imgs[0])
+        annotation_file = os.path.join("../blob_data", annotation_file)
+        datadir = os.path.join("../blob_data", datadir)
         try:
             analysis_df = analyze_dataset(annotation_file, datadir)
             print(annotation_file)
@@ -569,6 +599,122 @@ def update_anomaly_table(prev, curr):
 style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
 path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
 tab4_label = "Proportion of object in image"
+
+
+def display_header(local):
+    if local:
+        return html.Div(
+            [
+                dcc.Upload(
+                    id="upload-annotation-data",
+                    children=dbc.Button(
+                        "Upload JSON Annotation File", color="primary", block=True
+                    ),
+                    multiple=False,
+                    style={"margin-left": "10%", "margin-right": "10%"},
+                ),
+                html.Hr(),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Div(
+                                id="data_dir_textbox",
+                                children=dbc.Input(
+                                    id="input_data_dir",
+                                    type="text",
+                                    placeholder=path,
+                                    className="mb-3",
+                                ),
+                            ),
+                            width=9,
+                        ),
+                        dbc.Col(
+                            html.Div(
+                                dbc.FormGroup(
+                                    [
+                                        dbc.Checkbox(
+                                            id="batch_checkbox",
+                                            className="form-check-input",
+                                        ),
+                                        dbc.Label(
+                                            "batch analysis",
+                                            html_for="batch_checkbox",
+                                            className="form-check-label",
+                                        ),
+                                    ],
+                                    check=True,
+                                ),
+                            ),
+                            width=3,
+                        ),
+                    ],
+                    style={"margin-left": "10%", "margin-right": "10%"},
+                ),
+                html.Hr(),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            [
+                                dcc.Upload(
+                                    id="upload-analysis-data",
+                                    children=dbc.Button(
+                                        "Load Feather Analysis File",
+                                        color="primary",
+                                        block=True,
+                                        outline=True,
+                                    ),
+                                    multiple=False,
+                                )
+                            ],
+                            width=6,
+                        ),
+                        dbc.Col(
+                            [
+                                dbc.Button(
+                                    "Analyze",
+                                    id="analyze_button",
+                                    color="primary",
+                                    outline=True,
+                                    block=True,
+                                )
+                            ],
+                            width=6,
+                        ),
+                    ],
+                    style={"margin-left": "20%", "margin-right": "20%"},
+                ),
+            ]
+        )
+    else:
+        datasets = get_blob_datasets()
+        return html.Div(
+            [
+                dcc.Dropdown(
+                    id="dataset_selection",
+                    options=[{"label": i, "value": i} for i in datasets],
+                    value=datasets[0],
+                    style={
+                        "margin-top": "25px",
+                        "margin-left": "25px",
+                        "margin-right": "50%",
+                    },
+                ),
+                dbc.Button(
+                    "Analyze",
+                    id="analyze_button_online",
+                    color="primary",
+                    outline=True,
+                    style={
+                        "margin-top": "25px",
+                        "margin-left": "25px",
+                        "margin-right": "50%",
+                    },
+                ),
+            ]
+        )
+
+
+header = display_header(local=False)
 app.layout = html.Div(
     children=[
         html.H1(children="Viz EDA", style=style),
@@ -578,87 +724,12 @@ app.layout = html.Div(
             style={"margin-left": "50px", "margin-bottom": "50px"},
         ),
         html.Hr(),
-        dcc.Upload(
-            id="upload-annotation-data",
-            children=dbc.Button(
-                "Upload JSON Annotation File", color="primary", block=True
-            ),
-            multiple=False,
-            style={"margin-left": "10%", "margin-right": "10%"},
-        ),
-        html.Hr(),
-        dbc.Row(
-            [
-                dbc.Col(
-                    html.Div(
-                        id="data_dir_textbox",
-                        children=dbc.Input(
-                            id="input_data_dir",
-                            type="text",
-                            placeholder=path,
-                            className="mb-3",
-                        ),
-                    ),
-                    width=9,
-                ),
-                dbc.Col(
-                    html.Div(
-                        dbc.FormGroup(
-                            [
-                                dbc.Checkbox(
-                                    id="batch_checkbox", className="form-check-input"
-                                ),
-                                dbc.Label(
-                                    "batch analysis",
-                                    html_for="batch_checkbox",
-                                    className="form-check-label",
-                                ),
-                            ],
-                            check=True,
-                        ),
-                    ),
-                    width=3,
-                ),
-            ],
-            style={"margin-left": "10%", "margin-right": "10%"},
-        ),
-        html.Hr(),
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        dcc.Upload(
-                            id="upload-analysis-data",
-                            children=dbc.Button(
-                                "Load Feather Analysis File",
-                                color="primary",
-                                block=True,
-                                outline=True,
-                            ),
-                            multiple=False,
-                        )
-                    ],
-                    width=6,
-                ),
-                dbc.Col(
-                    [
-                        dbc.Button(
-                            "Analyze",
-                            id="analyze_button",
-                            color="primary",
-                            outline=True,
-                            block=True,
-                        )
-                    ],
-                    width=6,
-                ),
-            ],
-            style={"margin-left": "20%", "margin-right": "20%"},
-        ),
+        header,
         html.Hr(),
         html.Div(id="output-ann-data-upload", style={"display": "none"}),
         html.Div(id="output-analysis-data-upload", style={"display": "none"}),
         html.Div(id="output-analysis-btn", style={"display": "none"}),
+        html.Div(id="output-analysis-btn-online", style={"display": "none"}),
         html.Div(id="checkbox_output", style={"display": "none"}),
         dcc.Tabs(
             id="tabs",
