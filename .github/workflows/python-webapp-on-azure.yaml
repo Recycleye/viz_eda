@@ -1,0 +1,53 @@
+name: Deploy Python package to Azure Web App
+
+on:
+  [push]
+
+# CONFIGURATION
+# For help, go to https://github.com/Azure/Actions
+#
+# 1. Set up the following secrets in your repository:
+#   AZURE_WEBAPP_PUBLISH_PROFILE
+#
+# 2. Change these variables for your configuration:
+env:
+  AZURE_WEBAPP_NAME: viz-eda
+  AZURE_WEBAPP_PACKAGE_PATH: '.'
+  PYTHON_VERSION: '3.7'
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build and push
+        uses: azure/docker-login@v1
+        with:
+          login-server: r7euks.azurecr.io
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - run: |
+          docker build . -t rickyappreg.azurecr.io/viz-eda:${{ github.run_number }}
+          docker push rickyappreg.azurecr.io/viz-eda:${{ github.run_number }}
+#  build:
+#    name: Build and Deploy
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v1
+#    - name: Set up Python ${{ env.PYTHON_VERSION }}
+#      uses: actions/setup-python@v1
+#      with:
+#        python-version: ${{ env.PYTHON_VERSION }}
+#    - name: Install dependencies
+#      run: |
+#        python -m pip install --upgrade pip
+#        pip install -r requirements.txt
+#    - name: Deploy Web App using GH Action azure/webapps-deploy
+#      uses: azure/webapps-deploy@v2
+#      with:
+#        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+#        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+#        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
