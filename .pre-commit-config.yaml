@@ -21,8 +21,8 @@ repos:
     rev: 3.8.3
     hooks:
       - id: flake8
-  - repo: https://github.com/pycqa/bandit
-    rev: 1.6.2
-    hooks:
-      - id: bandit
-        args: ["--skip=B311"]
+#  - repo: https://github.com/pycqa/bandit
+#    rev: 1.6.2
+#    hooks:
+#      - id: bandit
+#        args: ["--skip=B311"]
