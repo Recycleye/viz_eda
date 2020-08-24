@@ -306,5 +306,5 @@ def analyze_dataset(annotation_file, imgs_path):
         ],
     )
     timestr = time.strftime("%Y%m%d%H%M%S")
-    df.to_feather("./output/analysis" + timestr)
+    df.to_feather("../output/analysis" + timestr)
     return df

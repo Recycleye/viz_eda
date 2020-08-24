@@ -152,6 +152,17 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
     return html_imgs
 
 
+def set_blob_data(dataset):
+    global annotation_file, datadir
+    blob_list = get_blobs(dataset)
+    blob_names = download_blobs(blob_list)
+    annotation_file = [i for i in blob_names if ".json" in i][0]
+    imgs = [i for i in blob_names if ".jpg" in i or ".png" in i]
+    datadir = os.path.dirname(imgs[0])
+    annotation_file = os.path.join("../blob_data", annotation_file)
+    datadir = os.path.join("../blob_data", datadir)
+
+
 def render_tab0():
     try:
         if profile == "":
@@ -350,9 +361,26 @@ def on_form_change(checkbox_checked):
     [Input("upload-analysis-data", "contents")],
 )
 def upload_analysis_data(contents):
-    # TODO: callback triggers tab-0 rendering
     if contents is not None:
         children = parse_contents(contents)
+        return children
+
+
+@app.callback(
+    Output("output-analysis-data-upload-online", "children"),
+    [Input("upload-analysis-data-online", "contents")],
+    [State("dataset_selection", "value")],
+)
+def upload_analysis_data_online(contents, dataset):
+    global datadir, annotation_file, coco_data
+    if contents is not None:
+        children = parse_contents(contents)
+        set_blob_data(dataset)
+        try:
+            coco_data = coco.COCO(annotation_file)
+        except Exception as e:
+            print(e)
+            return exception_html
         return children
 
 
@@ -360,11 +388,10 @@ def upload_analysis_data(contents):
     Output("output-analysis-btn", "children"), [Input("analyze_button", "n_clicks")],
 )
 def analyze_button(n_clicks):
-    # TODO: callback triggers tab-0 rendering
     global datadir, annotation_file, analysis_df, profile, batch_analysis
     if n_clicks is not None:
         if batch_analysis:
-            datasets = get_blob_datasets(datadir)
+            datasets = get_datasets(datadir)
             merge_datasets(datasets)
             annotation_file = "./temp/results/merged/annotations/merged.json"
             datadir = "./temp/results/merged/images"
@@ -383,21 +410,16 @@ def analyze_button(n_clicks):
     [State("dataset_selection", "value")],
 )
 def analyze_button_online(n_clicks, dataset):
-    global datadir, annotation_file, analysis_df, profile, batch_analysis
+    global datadir, annotation_file, analysis_df, profile, batch_analysis, coco_data
     if n_clicks is not None:
         # if batch_analysis:
         #     datasets = get_blob_datasets(datadir)
         #     merge_datasets(datasets)
         #     annotation_file = "./temp/results/merged/annotations/merged.json"
         #     datadir = "./temp/results/merged/images"
-        blob_list = get_blobs(dataset)
-        blob_names = download_blobs(blob_list)
-        annotation_file = [i for i in blob_names if ".json" in i][0]
-        imgs = [i for i in blob_names if ".jpg" in i or ".png" in i]
-        datadir = os.path.dirname(imgs[0])
-        annotation_file = os.path.join("../blob_data", annotation_file)
-        datadir = os.path.join("../blob_data", datadir)
+        set_blob_data(dataset)
         try:
+            coco_data = coco.COCO(annotation_file)
             analysis_df = analyze_dataset(annotation_file, datadir)
             print(annotation_file)
             profile = ProfileReport(analysis_df, title="Dataset").to_html()
@@ -651,66 +673,63 @@ def display_header(local):
                     style={"margin-left": "10%", "margin-right": "10%"},
                 ),
                 html.Hr(),
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                dcc.Upload(
-                                    id="upload-analysis-data",
-                                    children=dbc.Button(
-                                        "Load Feather Analysis File",
-                                        color="primary",
-                                        block=True,
-                                        outline=True,
-                                    ),
-                                    multiple=False,
-                                )
-                            ],
-                            width=6,
-                        ),
-                        dbc.Col(
-                            [
-                                dbc.Button(
-                                    "Analyze",
-                                    id="analyze_button",
-                                    color="primary",
-                                    outline=True,
-                                    block=True,
-                                )
-                            ],
-                            width=6,
-                        ),
-                    ],
-                    style={"margin-left": "20%", "margin-right": "20%"},
+            ],
+            html.Hr(),
+            html.Div(
+                dcc.Upload(
+                    id="upload-analysis-data",
+                    children=dbc.Button(
+                        "Load Feather Analysis File",
+                        color="primary",
+                        block=True,
+                        outline=True,
+                    ),
+                    multiple=False,
                 ),
-            ]
+                style={"margin-left": "10%", "margin-right": "10%"},
+            ),
         )
     else:
         datasets = get_blob_datasets()
         return html.Div(
             [
-                dcc.Dropdown(
-                    id="dataset_selection",
-                    options=[{"label": i, "value": i} for i in datasets],
-                    value=datasets[0],
-                    style={
-                        "margin-top": "25px",
-                        "margin-left": "25px",
-                        "margin-right": "50%",
-                    },
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            dcc.Dropdown(
+                                id="dataset_selection",
+                                options=[{"label": i, "value": i} for i in datasets],
+                                value=datasets[0],
+                            ),
+                            width=6,
+                        ),
+                        dbc.Col(
+                            dbc.Button(
+                                "Analyze",
+                                id="analyze_button_online",
+                                color="primary",
+                                outline=True,
+                                block=True,
+                            ),
+                            width=6,
+                        ),
+                    ]
                 ),
-                dbc.Button(
-                    "Analyze",
-                    id="analyze_button_online",
-                    color="primary",
-                    outline=True,
-                    style={
-                        "margin-top": "25px",
-                        "margin-left": "25px",
-                        "margin-right": "50%",
-                    },
+                html.Hr(),
+                html.Div(
+                    dcc.Upload(
+                        id="upload-analysis-data-online",
+                        children=dbc.Button(
+                            "Load Feather Analysis File",
+                            color="primary",
+                            block=True,
+                            outline=True,
+                        ),
+                        multiple=False,
+                    ),
                 ),
-            ]
+            ],
+            style={"margin-left": "10%", "margin-right": "10%"},
         )
 
 
@@ -730,6 +749,7 @@ app.layout = html.Div(
         html.Div(id="output-analysis-data-upload", style={"display": "none"}),
         html.Div(id="output-analysis-btn", style={"display": "none"}),
         html.Div(id="output-analysis-btn-online", style={"display": "none"}),
+        html.Div(id="output-analysis-data-upload-online", style={"display": "none"}),
         html.Div(id="checkbox_output", style={"display": "none"}),
         dcc.Tabs(
             id="tabs",
