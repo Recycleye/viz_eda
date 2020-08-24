@@ -25,7 +25,7 @@ jobs:
       - name: Build and push
         uses: azure/docker-login@v1
         with:
-          login-server: r7euks.azurecr.io
+          login-server: rickyappreg.azurecr.io
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 

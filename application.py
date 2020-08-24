@@ -750,10 +750,10 @@ app.layout = html.Div(
 
 if __name__ == "__main__":
     # Run on docker
-    # application.run(host="0.0.0.0", port=port, debug=True)
+    application.run(port=port, debug=True)
 
     # Run locally
-    app.run_server(port=port, debug=True)
+    # app.run_server(port=port, debug=True)
 
     # Only do analysis
     # annotation_file = ""
