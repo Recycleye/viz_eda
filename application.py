@@ -92,7 +92,7 @@ def merge_datasets(dataset):
 
 
 def parse_contents(contents):
-    global analysis_df, datadir, annotation_file, coco_data, profile
+    global analysis_df, annotation_file, coco_data, profile
     content_type, content_string = contents.split(",", 1)
     if content_type == "data:application/json;base64":
         decoded = base64.b64decode(content_string).decode("UTF-8")
@@ -153,7 +153,7 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
 
 
 def set_blob_data(dataset):
-    global annotation_file, datadir
+    global annotation_file, datadir, coco_data
     blob_list = get_blobs(dataset)
     blob_names = download_blobs(blob_list)
     annotation_file = [i for i in blob_names if ".json" in i][0]
@@ -161,6 +161,7 @@ def set_blob_data(dataset):
     datadir = os.path.dirname(imgs[0])
     annotation_file = os.path.join("../blob_data", annotation_file)
     datadir = os.path.join("../blob_data", datadir)
+    coco_data = coco.COCO(annotation_file)
 
 
 def render_tab0():
@@ -372,15 +373,10 @@ def upload_analysis_data(contents):
     [State("dataset_selection", "value")],
 )
 def upload_analysis_data_online(contents, dataset):
-    global datadir, annotation_file, coco_data
+    global annotation_file, coco_data
     if contents is not None:
-        children = parse_contents(contents)
         set_blob_data(dataset)
-        try:
-            coco_data = coco.COCO(annotation_file)
-        except Exception as e:
-            print(e)
-            return exception_html
+        children = parse_contents(contents)
         return children
 
 
@@ -419,7 +415,6 @@ def analyze_button_online(n_clicks, dataset):
         #     datadir = "./temp/results/merged/images"
         set_blob_data(dataset)
         try:
-            coco_data = coco.COCO(annotation_file)
             analysis_df = analyze_dataset(annotation_file, datadir)
             print(annotation_file)
             profile = ProfileReport(analysis_df, title="Dataset").to_html()

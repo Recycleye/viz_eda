@@ -14,3 +14,4 @@ coco_assistant~=0.3.1
 python-dotenv~=0.12.0
 sklearn~=0.0
 azure-storage-blob~=12.3.2
+pyarrow==1.0.0
