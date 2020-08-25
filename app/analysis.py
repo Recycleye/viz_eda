@@ -305,6 +305,10 @@ def analyze_dataset(annotation_file, imgs_path):
             "abnormal objects",
         ],
     )
-    timestr = time.strftime("%Y%m%d%H%M%S")
-    df.to_feather("../output/analysis" + timestr)
+    outname = "analysis" + time.strftime("%Y%m%d%H%M%S")
+    outdir = "./output"
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    analysis_path = os.path.join(outdir, outname)
+    df.to_feather(analysis_path)
     return df
