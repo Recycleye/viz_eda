@@ -244,8 +244,8 @@ def analyze_dataset(annotation_file, imgs_path):
         img_ids = coco_data.getImgIds(catIds=cat_ids)
         ann_ids = coco_data.getAnnIds(catIds=cat_ids)
 
-        print("Loading object masks...")
-        imgs, masks, anns = get_obj_masks(cat_ids, img_ids, imgs_path, coco_data)
+        # print("Loading object masks...")
+        # imgs, masks, anns = get_obj_masks(cat_ids, img_ids, imgs_path, coco_data)
 
         print("Getting number of objects...")
         num_objs = len(ann_ids)
@@ -305,10 +305,12 @@ def analyze_dataset(annotation_file, imgs_path):
             "abnormal objects",
         ],
     )
+    os.chdir("..")
+    print(os.getcwd())
     outname = "analysis" + time.strftime("%Y%m%d%H%M%S")
-    outdir = "./output"
+    outdir = "output"
     if not os.path.exists(outdir):
         os.mkdir(outdir)
     analysis_path = os.path.join(outdir, outname)
     df.to_feather(analysis_path)
-    return df
+    return df, analysis_path

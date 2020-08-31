@@ -2,6 +2,7 @@ import base64
 import os
 import shutil
 from io import BytesIO
+from urllib.parse import quote as urlquote
 
 import dash
 import dash_bootstrap_components as dbc
@@ -14,6 +15,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from coco_assistant import COCO_Assistant
 from dash.dependencies import ALL, Input, Output, State
+from flask import send_file
 from pandas_profiling import ProfileReport
 from skimage import io
 from tqdm import tqdm
@@ -34,7 +36,7 @@ batch_analysis = False
 # main dataframe containing data from analysis.py
 analysis_df = pd.DataFrame()
 # dataframe holding manually flagged images w/ anomalies
-anomaly_table = pd.DataFrame(columns=["Category", "Image filename"])
+anomaly_table = pd.DataFrame(columns=["Category", "Image ID"])
 # path to image data
 datadir = ""
 # path to annotation file
@@ -235,7 +237,7 @@ def render_tab3():
             dcc.Graph(id="objs_per_img", figure=fig),
             html.Div(children=text),
             html.Div(id="obj_hist_out"),
-            html.Div(id="obj_imgs"),
+            dbc.Spinner(html.Div(id="obj_imgs"), size="lg"),
         ],
         style={"margin-left": "10%", "margin-right": "10%"},
     )
@@ -254,7 +256,7 @@ def render_tab4():
             dcc.Graph(id="cat_areas", figure=fig),
             html.Div(children=text),
             html.Div(id="area_hist_out"),
-            html.Div(id="area_imgs"),
+            dbc.Spinner(html.Div(id="area_imgs"), size="lg"),
         ],
         style={"margin-left": "10%", "margin-right": "10%"},
     )
@@ -265,14 +267,14 @@ def render_tab5():
     cat_dict = coco_data.loadCats(cat_ids)
     cat_nms = [d["name"] for d in cat_dict]
     options = [{"label": i, "value": i} for i in cat_nms]
-    style = {"margin-top": "25px", "margin-left": "25px"}
+    s = {"margin-top": "25px", "margin-left": "25px"}
     return html.Div(
         [
             dbc.Row(
                 [
                     dbc.Col(
                         [
-                            html.H3(children="Select a category", style=style),
+                            html.H3(children="Select a category", style=s),
                             dcc.Dropdown(
                                 id="cat_selection",
                                 options=options,
@@ -283,13 +285,13 @@ def render_tab5():
                                     "margin-right": "50%",
                                 },
                             ),
-                            html.Div(id="anomaly_imgs"),
+                            dbc.Spinner(html.Div(id="anomaly_imgs"), size="lg"),
                         ],
                         width=6,
                     ),
                     dbc.Col(
                         [
-                            html.H3(children="Flagged anomalies", style=style),
+                            html.H3(children="Flagged anomalies", style=s),
                             html.Div(id="anomaly_table"),
                         ],
                         width=6,
@@ -392,7 +394,7 @@ def analyze_button(n_clicks):
             annotation_file = "./temp/results/merged/annotations/merged.json"
             datadir = "./temp/results/merged/images"
         try:
-            analysis_df = analyze_dataset(annotation_file, datadir)
+            analysis_df, analysis_output = analyze_dataset(annotation_file, datadir)
             print(annotation_file)
             profile = ProfileReport(analysis_df, title="Dataset").to_html()
         except Exception as e:
@@ -415,9 +417,26 @@ def analyze_button_online(n_clicks, dataset):
         #     datadir = "./temp/results/merged/images"
         set_blob_data(dataset)
         try:
-            analysis_df = analyze_dataset(annotation_file, datadir)
-            print(annotation_file)
+            analysis_df, analysis_output = analyze_dataset(annotation_file, datadir)
+            download_analysis(analysis_output)
             profile = ProfileReport(analysis_df, title="Dataset").to_html()
+            location = "/download_analysis/{}".format(urlquote(analysis_output))
+            return (
+                html.Div(
+                    [
+                        html.Hr(),
+                        html.A(
+                            dbc.Button(
+                                "Download Analysis",
+                                color="primary",
+                                block=True,
+                                outline=True,
+                            ),
+                            href=location,
+                        ),
+                    ]
+                ),
+            )
         except Exception as e:
             print(e)
             return exception_html
@@ -578,9 +597,9 @@ def display_anomaly_table(n_clicks, cat, id):
         file = id[i]["index"]
         # Add filename to anomaly_table if it does not already contain the file
         if (val is not None) and (
-            not anomaly_table["Image filename"].str.contains(file).any()
+            not anomaly_table["Image ID"].str.contains(file).any()
         ):
-            new_row = {"Category": cat[i], "Image filename": file}
+            new_row = {"Category": cat[i], "Image ID": file}
             anomaly_table = anomaly_table.append(new_row, ignore_index=True)
     return html.Div(
         dash_table.DataTable(
@@ -605,12 +624,17 @@ def update_anomaly_table(prev, curr):
         dash.exceptions.PreventUpdate()
     else:
         removed = list(
-            set([i["Image filename"] for i in prev])
-            - set([i["Image filename"] for i in curr])
+            set([i["Image ID"] for i in prev]) - set([i["Image ID"] for i in curr])
         )[0]
         global anomaly_table
-        col = "Image filename"
+        col = "Image ID"
         anomaly_table = anomaly_table[anomaly_table[col] != removed]
+
+
+@app.server.route("/download_analysis/<path:filename>")
+def download_analysis(filename):
+    print(filename)
+    return send_file(filename, attachment_filename=filename, as_attachment=True)
 
 
 style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
@@ -710,12 +734,13 @@ def display_header(local):
                         ),
                     ]
                 ),
+                html.Div(id="output-analysis-btn-online"),
                 html.Hr(),
                 html.Div(
                     dcc.Upload(
                         id="upload-analysis-data-online",
                         children=dbc.Button(
-                            "Load Feather Analysis File",
+                            "Upload Feather Analysis File",
                             color="primary",
                             block=True,
                             outline=True,
@@ -743,7 +768,6 @@ app.layout = html.Div(
         html.Div(id="output-ann-data-upload", style={"display": "none"}),
         html.Div(id="output-analysis-data-upload", style={"display": "none"}),
         html.Div(id="output-analysis-btn", style={"display": "none"}),
-        html.Div(id="output-analysis-btn-online", style={"display": "none"}),
         html.Div(id="output-analysis-data-upload-online", style={"display": "none"}),
         html.Div(id="checkbox_output", style={"display": "none"}),
         dcc.Tabs(
