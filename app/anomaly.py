@@ -43,6 +43,11 @@ def get_outliers(hist, colour, area, roughness, nn=30, contam=0.05):
 
     # annIDs should not be included in anomaly detection
     train = train.drop(["annID"], axis=1)
+
+    if train.shape[0] < nn:
+        nn = train.shape[0]
+        return pd.DataFrame({"lof":[1]*train.shape[0], "negative_outlier_factor":[0]*train.shape[0]})
+
     lof = LocalOutlierFactor(n_neighbors=nn, contamination=contam)
     results = pd.DataFrame()
     results["lof"] = lof.fit_predict(train)
