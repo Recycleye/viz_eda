@@ -21,7 +21,7 @@ from skimage import io
 from tqdm import tqdm
 
 from app.analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
-from app.blob import download_blobs, get_blob_datasets, get_blobs
+#from app.blob import download_blobs, get_blob_datasets, get_blobs
 
 # CSS stylesheet for app
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
@@ -692,10 +692,11 @@ def display_header(local):
                     style={"margin-left": "10%", "margin-right": "10%"},
                 ),
                 html.Hr(),
-            ],
+            
             html.Hr(),
+            
             html.Div(
-                dcc.Upload(
+                [dcc.Upload(
                     id="upload-analysis-data",
                     children=dbc.Button(
                         "Load Feather Analysis File",
@@ -705,8 +706,10 @@ def display_header(local):
                     ),
                     multiple=False,
                 ),
+                dbc.Button("Analyze", id="analyze_button", color="primary", block=True)
+                ],
                 style={"margin-left": "10%", "margin-right": "10%"},
-            ),
+            ),]
         )
     else:
         datasets = get_blob_datasets()
@@ -737,7 +740,7 @@ def display_header(local):
                 html.Div(id="output-analysis-btn-online"),
                 html.Hr(),
                 html.Div(
-                    dcc.Upload(
+                    [dcc.Upload(
                         id="upload-analysis-data-online",
                         children=dbc.Button(
                             "Upload Feather Analysis File",
@@ -747,13 +750,14 @@ def display_header(local):
                         ),
                         multiple=False,
                     ),
+                    ]
                 ),
             ],
             style={"margin-left": "10%", "margin-right": "10%"},
         )
 
 
-header = display_header(local=False)
+header = display_header(local=True)
 app.layout = html.Div(
     children=[
         html.H1(children="Viz EDA", style=style),
@@ -792,7 +796,7 @@ if __name__ == "__main__":
     application.run(host="0.0.0.0", port=port, debug=True)
 
     # Run locally
-    # app.run_server(port=port, debug=True)
+    #app.run_server(port=port, debug=True)
 
     # Only do analysis
     # annotation_file = ""
