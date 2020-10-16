@@ -1,6 +1,6 @@
 data/*
-.dockerignore
-.gitignore
 output/*
 /temp/
 blob_data/*
+__pycache__
+.env
