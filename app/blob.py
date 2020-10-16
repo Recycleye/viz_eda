@@ -2,6 +2,7 @@ import os
 from datetime import datetime, timedelta
 
 from azure.storage.blob import BlobSasPermissions, BlobServiceClient, generate_blob_sas
+from azure.storage.blob import BlobPrefix
 from dotenv import load_dotenv
 from tqdm import tqdm
 
@@ -10,18 +11,19 @@ load_dotenv(override=True)
 connect_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
 account_key = os.getenv("AZURE_STORAGE_ACCOUNT_ACCESS_KEY")
+
 # Create the BlobServiceClient object used to get a container client
 blob_service_client = BlobServiceClient.from_connection_string(connect_str)
-# Create the ContainerClient object used to get blob data
-container_name = "datastorage"
-container_client = blob_service_client.get_container_client(container_name)
 
+# Create the ContainerClient object used to get blob data
+container_name = os.getenv("AZURE_STORAGE_CONTAINER", "datastorage")
+
+container_client = blob_service_client.get_container_client(container_name)
 
 def get_blob_datasets():
     folders = container_client.walk_blobs(delimiter="/")
     datasets = [f.name[:-1] for f in folders]
     return datasets
-
 
 def get_blobs(dataset):
     blob_list = container_client.list_blobs(name_starts_with=dataset)
