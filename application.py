@@ -24,7 +24,6 @@ from app.analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
 #from app.blob import download_blobs, get_blob_datasets, get_blobs
 
 # CSS stylesheet for app
-external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 # main dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 app.config["suppress_callback_exceptions"] = True
@@ -760,14 +759,26 @@ def display_header(local):
 
 
 header = display_header(local=True)
+
+navbar = dbc.Navbar(
+    [
+        html.A(
+            dbc.Row(
+                [
+                    dbc.Col(dbc.NavbarBrand("VIZ EDA", style={"font-size":"2.5rem","white-space":"pre-wrap","font-weight":"bolder","font-family":"sans-serif"})),
+                    dbc.Col(html.H6("Exploratory data analysis for computer vision",style={"white-space":"nowrap","color":"grey","margin-top":"8.5%","margin-left":"-40%"}))
+                ],
+                align="center",
+                no_gutters=True,
+            )
+        )
+    ],
+    style={"padding":"0.1rem"}
+)
+
 app.layout = html.Div(
     children=[
-        html.H1(children="Viz EDA", style=style),
-        html.Div(
-            children="Exploratory data analysis for computer vision and "
-            "object recognition.",
-            style={"margin-left": "50px", "margin-bottom": "50px"},
-        ),
+        navbar,
         html.Hr(),
         header,
         html.Hr(),
