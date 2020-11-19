@@ -7,4 +7,4 @@ services:
     ports:
       - 8080:80
     volumes:
-      - /Users/benedettadelfino/Desktop:/Users/benedettadelfino/Desktop:ro
+      - /Users/davidelocatelli/Desktop:/Users/davidelocatelli/Desktop:ro
