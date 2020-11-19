@@ -98,8 +98,10 @@ def parse_contents(contents):
     content_type, content_string = contents.split(",", 1)
     if content_type == "data:application/json;base64":
         decoded = base64.b64decode(content_string).decode("UTF-8")
+        os.mkdir("./output")
         with open("./output/output.json", "w") as file:
             file.write(decoded)
+        print("\n\nWrote to file!!\n\n")
         annotation_file = "./output/output.json"
         coco_data = coco.COCO(annotation_file)
     elif content_type == "data:application/octet-stream;base64":
