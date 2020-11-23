@@ -53,7 +53,7 @@ area_cat = ""
 exception_html = html.Div(
     children="Please load a valid COCO-style annotation file and "
     "define a valid folder.",
-    style={"margin-left": "50px", "margin-top": "50px"},
+    style={"margin-left": "50px", "margin-top": "50px","display":"none"},
 )
 
 
@@ -644,6 +644,49 @@ path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
 tab4_label = "Proportion of object in image"
 
 
+new_analysis_menu = html.Div(
+    [
+        dbc.FormGroup(
+            [
+                dbc.Checklist(
+                    options=[{"label":"Batch analysis","value":"1"}],
+                    value=[],
+                    switch=True,
+                    id="batch-analysis-toggle"
+                )
+            ],
+            style={"margin":"auto","padding-bottom":"0.8%","width":"22%"}
+        ),
+        dbc.Input(
+            type="text",
+            placeholder="Path to images e.g. /Users/me/project/data/val2017",
+            className="mb-3",
+            id="images-upload",
+            style={"margin":"auto","width":"22%"}
+        ),
+        dcc.Upload(
+            [
+                dbc.Button("Upload annotation file (.json)",color="dark", className="mr-1",outline=True,style={"width":"100%"})
+            ],
+            multiple=False,
+            id="annoation-upload",
+            style={"margin":"auto","width":"22%","padding-bottom":"0.8%"}
+        ),
+        html.Div(
+            [
+                dbc.Button(
+                    "Analyse",
+                    color="dark",
+                    className="mr-1",
+                    style={"width":"100%"}
+                )
+            ],
+            style={"margin":"auto","width":"22%"}
+        )
+    ],
+    id="new-analysis-menu"
+)
+
 def display_header(local):
     if local:
         return html.Div(
@@ -711,7 +754,8 @@ def display_header(local):
                 dbc.Button("Analyze", id="analyze_button", color="primary", block=True)
                 ],
                 style={"margin-left": "10%", "margin-right": "10%"},
-            ),]
+            ),],
+            style={"display":"none"}
         )
     else:
         datasets = get_blob_datasets()
@@ -792,27 +836,39 @@ welcome_menu = html.Div(
         html.Div(dbc.Button("New analysis", color="dark", className="mr-1",outline=True,style={"float":"right","width":"25%","letter-spacing":"2px"},id="new-analysis-btn"),style={"width":"50%","margin":"auto"}),
         html.Div(dbc.Button("Existing analysis", color="dark", className="mr-1",outline=True,style={"width":"25%","letter-spacing":"2px"},id="existing-analyis-btn"),style={"width":"50%","margin":"auto"})
     ],
-    style={"display":"flex","padding-top":"20%"},
+    style={"display":"flex","padding-top":"22.5%"},
     id="welcome-menu"
 )
 
 @app.callback(
     Output('reload-button', 'style'),
-    [Input('new-analysis-btn', 'n_clicks'),
-    Input('existing-analyis-btn', 'n_clicks')])
-def show_reload_button(click1,click2):
-    if click1 or click2:
-        return {"display":"block"}
+    Output('new-analysis-menu','style'),
+    Output('welcome-menu','style'),
+    Input('new-analysis-btn', 'n_clicks'),
+    Input('existing-analyis-btn', 'n_clicks'))
+def show_reload_button(new,existing):
+    if new:
+        reload_btn_style = {"display":"block"}
+        new_analysis_menu_style = {"display":"block","padding-top":"18%"}
+        welcome_menu_style = {"display":"none"}
+        return reload_btn_style, new_analysis_menu_style, welcome_menu_style
+    elif existing:
+        reload_btn_style = {"display":"block"}
+        new_analysis_menu_style = {"display":"none"}
+        welcome_menu_style = {"display":"none"}
+        return reload_btn_style, new_analysis_menu_style, welcome_menu_style
     else:
-        return {"display":"none"}
+        reload_btn_style = {"display":"none"}
+        new_analysis_menu_style = {"display":"none"}
+        welcome_menu_style = {"display":"flex","padding-top":"22.5%"}
+        return reload_btn_style, new_analysis_menu_style, welcome_menu_style
 
 app.layout = html.Div(
     children=[
         navbar,
         welcome_menu,
-        html.Hr(),
+        new_analysis_menu,
         header,
-        html.Hr(),
         html.Div(id="output-ann-data-upload", style={"display": "none"}),
         html.Div(id="output-analysis-data-upload", style={"display": "none"}),
         html.Div(id="output-analysis-btn", style={"display": "none"}),
@@ -829,9 +885,9 @@ app.layout = html.Div(
                 dcc.Tab(label=tab4_label, value="tab-4",),
                 dcc.Tab(label="Anomaly detection", value="tab-5"),
             ],
+            style={"display":"none"}
         ),
         html.Div(id="tabs-figures"),
-        html.Hr(),
     ]
 )
 
