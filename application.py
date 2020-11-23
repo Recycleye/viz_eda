@@ -767,7 +767,16 @@ navbar = dbc.Navbar(
             [
                 dbc.Col(dbc.NavbarBrand("VIZ EDA", style={"font-size":"2.5rem","white-space":"pre-wrap","font-weight":"bolder","font-family":"sans-serif","margin-left":"12%"}),width=2),
                 dbc.Col(html.H5("Exploratory data analysis for computer vision",style={"color":"#585858","margin-top":"1%","margin-left":"-5.5%"})),
-                dbc.Col(html.A(html.Img(src="https://cdn1.iconfinder.com/data/icons/arrows-elements-outline/128/ic_round_update-128.png",style={"height":"15%","width":"15%","float":"right"}),href="http://localhost:8080/"),width=2)
+                dbc.Col(html.A(
+                    html.Img(
+                        src="https://cdn1.iconfinder.com/data/icons/arrows-elements-outline/128/ic_round_update-128.png",
+                        style={"height":"15%","width":"15%","float":"right"}
+                        ),
+                    id="reload-button",
+                    href="http://localhost:8080/"
+                    )
+                ,width=2
+                )
             ],
             align="center",
             no_gutters=False,
@@ -778,9 +787,29 @@ navbar = dbc.Navbar(
     style={"padding":"0.1rem"}
 )
 
+welcome_menu = html.Div(
+    [
+        html.Div(dbc.Button("New analysis", color="dark", className="mr-1",outline=True,style={"float":"right","width":"25%","letter-spacing":"2px"},id="new-analysis-btn"),style={"width":"50%","margin":"auto"}),
+        html.Div(dbc.Button("Existing analysis", color="dark", className="mr-1",outline=True,style={"width":"25%","letter-spacing":"2px"},id="existing-analyis-btn"),style={"width":"50%","margin":"auto"})
+    ],
+    style={"display":"flex","padding-top":"20%"},
+    id="welcome-menu"
+)
+
+@app.callback(
+    Output('reload-button', 'style'),
+    [Input('new-analysis-btn', 'n_clicks'),
+    Input('existing-analyis-btn', 'n_clicks')])
+def show_reload_button(click1,click2):
+    if click1 or click2:
+        return {"display":"block"}
+    else:
+        return {"display":"none"}
+
 app.layout = html.Div(
     children=[
         navbar,
+        welcome_menu,
         html.Hr(),
         header,
         html.Hr(),
