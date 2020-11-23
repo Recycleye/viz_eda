@@ -25,7 +25,8 @@ from app.analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
 
 # CSS stylesheet for app
 # main dash app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
+
+app = dash.Dash(__name__,external_stylesheets=[dbc.themes.LUX])
 app.config["suppress_callback_exceptions"] = True
 application = app.server
 # port to run app
@@ -762,16 +763,17 @@ header = display_header(local=True)
 
 navbar = dbc.Navbar(
     [
-        html.A(
-            dbc.Row(
-                [
-                    dbc.Col(dbc.NavbarBrand("VIZ EDA", style={"font-size":"2.5rem","white-space":"pre-wrap","font-weight":"bolder","font-family":"sans-serif"})),
-                    dbc.Col(html.H6("Exploratory data analysis for computer vision",style={"white-space":"nowrap","color":"grey","margin-top":"8.5%","margin-left":"-40%"}))
-                ],
-                align="center",
-                no_gutters=True,
-            )
-        )
+        dbc.Row(
+            [
+                dbc.Col(dbc.NavbarBrand("VIZ EDA", style={"font-size":"2.5rem","white-space":"pre-wrap","font-weight":"bolder","font-family":"sans-serif","margin-left":"12%"}),width=2),
+                dbc.Col(html.H5("Exploratory data analysis for computer vision",style={"color":"#585858","margin-top":"1%","margin-left":"-5.5%"})),
+                dbc.Col(html.A(html.Img(src="https://cdn1.iconfinder.com/data/icons/arrows-elements-outline/128/ic_round_update-128.png",style={"height":"15%","width":"15%","float":"right"}),href="http://localhost:8080/"),width=2)
+            ],
+            align="center",
+            no_gutters=False,
+            justify="between",
+            style={"width":"100%"}
+        ),
     ],
     style={"padding":"0.1rem"}
 )
