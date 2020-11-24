@@ -1,0 +1,18 @@
+.custom-control-input:checked ~ .custom-control-label::before {
+    color: #fff;
+    border-color: #1a1a1a;
+    background-color: #4BB543;
+}
+
+.custom-control-label::before {
+    position: absolute;
+    top: 0.15625rem;
+    left: -1.5rem;
+    display: block;
+    width: 1rem;
+    height: 1rem;
+    pointer-events: none;
+    content: "";
+    background-color: whitesmoke;
+    border: #adb5bd solid 0px;
+}

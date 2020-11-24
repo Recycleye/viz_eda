@@ -21,41 +21,32 @@ from skimage import io
 from tqdm import tqdm
 
 from app.analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
-#from app.blob import download_blobs, get_blob_datasets, get_blobs
 
-# CSS stylesheet for app
-# main dash app
 
 app = dash.Dash(__name__,external_stylesheets=[dbc.themes.LUX])
 app.config["suppress_callback_exceptions"] = True
 application = app.server
-# port to run app
 port = 80
-# flag for batch analysis
 batch_analysis = False
-# main dataframe containing data from analysis.py
+
 analysis_df = pd.DataFrame()
-# dataframe holding manually flagged images w/ anomalies
 anomaly_table = pd.DataFrame(columns=["Category", "Image ID"])
-# path to image data
+
 datadir = ""
-# path to annotation file
 annotation_file = ""
-# variable holding loaded coco data
+
 coco_data = None
-# holds raw html from pandas-profiling output
-profile = ""
-# currently selected category on object tab
-obj_cat = ""
-# currently selected category on area tab
-area_cat = ""
+
+profile = "" # holds raw html from pandas-profiling output
+obj_cat = "" # currently selected category on object tab
+area_cat = "" # currently selected category on area tab
+
 # general html for exception handling
 exception_html = html.Div(
     children="Please load a valid COCO-style annotation file and "
     "define a valid folder.",
     style={"margin-left": "50px", "margin-top": "50px","display":"none"},
 )
-
 
 def get_datasets(data_dir):
     subfolders = [f.path for f in os.scandir(data_dir) if f.is_dir()]
@@ -67,7 +58,6 @@ def get_datasets(data_dir):
                 file = os.path.join(anns, file)
                 dataset.append((file, imgs))
     return dataset
-
 
 def merge_datasets(dataset):
     # Specify image and annotation directories
@@ -92,7 +82,6 @@ def merge_datasets(dataset):
     cas = COCO_Assistant(img_dir, ann_dir)
     cas.merge(merge_images=True)
 
-
 def parse_contents(contents):
     global analysis_df, annotation_file, coco_data, profile
     content_type, content_string = contents.split(",", 1)
@@ -114,7 +103,6 @@ def parse_contents(contents):
             print(e)
             return exception_html
 
-
 def fig_to_uri(in_fig, **save_args):
     # Save a figure as a URI
     out_img = BytesIO()
@@ -123,7 +111,6 @@ def fig_to_uri(in_fig, **save_args):
     b64encoded = base64.b64encode(out_img.read())
     encoded = b64encoded.decode("ascii").replace("\n", "")
     return "data:image/png;base64,{}".format(encoded)
-
 
 def get_html_imgs(img_ids, cat, outlying_anns=None):
     # TODO: speed-up image loading and display
@@ -155,7 +142,6 @@ def get_html_imgs(img_ids, cat, outlying_anns=None):
         )
     return html_imgs
 
-
 def set_blob_data(dataset):
     global annotation_file, datadir, coco_data
     blob_list = get_blobs(dataset)
@@ -166,7 +152,6 @@ def set_blob_data(dataset):
     annotation_file = os.path.join("../blob_data", annotation_file)
     datadir = os.path.join("../blob_data", datadir)
     coco_data = coco.COCO(annotation_file)
-
 
 def render_tab0():
     try:
@@ -188,7 +173,6 @@ def render_tab0():
         print(e)
         return exception_html
 
-
 def render_tab1():
     fig = px.bar(
         analysis_df,
@@ -206,7 +190,6 @@ def render_tab1():
         style={"margin-left": "10%", "margin-right": "10%"},
     )
 
-
 def render_tab2():
     fig = px.bar(
         analysis_df,
@@ -223,7 +206,6 @@ def render_tab2():
         ],
         style={"margin-left": "10%", "margin-right": "10%"},
     )
-
 
 def render_tab3():
     fig = px.bar(
@@ -244,7 +226,6 @@ def render_tab3():
         style={"margin-left": "10%", "margin-right": "10%"},
     )
 
-
 def render_tab4():
     fig = px.bar(
         analysis_df,
@@ -262,7 +243,6 @@ def render_tab4():
         ],
         style={"margin-left": "10%", "margin-right": "10%"},
     )
-
 
 def render_tab5():
     cat_ids = coco_data.getCatIds()
@@ -304,7 +284,6 @@ def render_tab5():
         style={"margin-left": "10%", "margin-right": "10%"},
     )
 
-
 @app.callback(
     Output("output-ann-data-upload", "children"),
     [Input("upload-annotation-data", "contents")],
@@ -313,7 +292,6 @@ def upload_ann_data(contents):
     if contents is not None:
         children = parse_contents(contents)
         return children
-
 
 @app.callback(
     Output("data_dir_textbox", "children"),
@@ -351,15 +329,41 @@ def check_datapath(prev, curr):
     else:
         return html.Div(children=invalid)
 
+@app.callback(
+    Output("images-upload", "valid"),
+    Input("images-upload", "value"))
+def check_img_path(path):
+    if path is None:
+        path = ""
+    if os.path.isdir(path):
+        return True
+    else:
+        return False
 
 @app.callback(
-    Output("checkbox_output", "children"), [Input("batch_checkbox", "checked")],
+    Output("analyse-btn", "disabled"),
+    Output("analyse-btn", "color"),
+    Input("images-upload", "valid"),
+    Input("annotation-upload", "contents"))
+def check_inputs(valid_path,contents):
+    valid_contents  =  False
+    if contents is not None:
+        content_type, _ = contents.split(",", 1)
+        if content_type == "data:application/json;base64":
+            valid_contents = True
+    if valid_path and valid_contents:
+        return False,"success"
+    else:
+        return True,"dark"
+
+@app.callback(
+    Output("checkbox_output", "children"), 
+    [Input("batch_checkbox", "checked")],
 )
 def on_form_change(checkbox_checked):
     if checkbox_checked:
         global batch_analysis
         batch_analysis = True
-
 
 @app.callback(
     Output("output-analysis-data-upload", "children"),
@@ -369,7 +373,6 @@ def upload_analysis_data(contents):
     if contents is not None:
         children = parse_contents(contents)
         return children
-
 
 @app.callback(
     Output("output-analysis-data-upload-online", "children"),
@@ -383,9 +386,9 @@ def upload_analysis_data_online(contents, dataset):
         children = parse_contents(contents)
         return children
 
-
 @app.callback(
-    Output("output-analysis-btn", "children"), [Input("analyze_button", "n_clicks")],
+    Output("output-analysis-btn", "children"), 
+    [Input("analyze_button", "n_clicks")],
 )
 def analyze_button(n_clicks):
     global datadir, annotation_file, analysis_df, profile, batch_analysis
@@ -402,7 +405,6 @@ def analyze_button(n_clicks):
         except Exception as e:
             print(e)
             return exception_html
-
 
 @app.callback(
     Output("output-analysis-btn-online", "children"),
@@ -443,9 +445,9 @@ def analyze_button_online(n_clicks, dataset):
             print(e)
             return exception_html
 
-
 @app.callback(
-    Output("tabs-figures", "children"), [Input("tabs", "value")],
+    Output("tabs-figures", "children"), 
+    [Input("tabs", "value")],
 )
 def render_tab(tab):
     try:
@@ -465,9 +467,9 @@ def render_tab(tab):
         print(e)
         return exception_html
 
-
 @app.callback(
-    Output("obj_hist_out", "children"), [Input("objs_per_img", "clickData")],
+    Output("obj_hist_out", "children"), 
+    [Input("objs_per_img", "clickData")],
 )
 def display_obj_hist(click_data):
     if click_data is not None:
@@ -491,9 +493,9 @@ def display_obj_hist(click_data):
             [dcc.Graph(id="objs_hist", figure=fig), html.Div(children=text)]
         )
 
-
 @app.callback(
-    Output("area_hist_out", "children"), [Input("cat_areas", "clickData")],
+    Output("area_hist_out", "children"), 
+    [Input("cat_areas", "clickData")],
 )
 def display_area_hist(click_data):
     if click_data is not None:
@@ -521,9 +523,9 @@ def display_area_hist(click_data):
             [dcc.Graph(id="area_hist", figure=fig), html.Div(children=text)]
         )
 
-
 @app.callback(
-    Output("obj_imgs", "children"), [Input("objs_hist", "clickData")],
+    Output("obj_imgs", "children"), 
+    [Input("objs_hist", "clickData")],
 )
 def display_obj_imgs(click_data):
     if click_data is not None:
@@ -536,9 +538,9 @@ def display_obj_imgs(click_data):
         html_imgs = get_html_imgs(img_ids, obj_cat)
         return html.Div(html_imgs)
 
-
 @app.callback(
-    Output("area_imgs", "children"), [Input("area_hist", "clickData")],
+    Output("area_imgs", "children"), 
+    [Input("area_hist", "clickData")],
 )
 def display_area_imgs(click_data):
     if click_data is not None:
@@ -552,9 +554,9 @@ def display_area_imgs(click_data):
         html_imgs = get_html_imgs(img_ids, area_cat)
         return html.Div(html_imgs)
 
-
 @app.callback(
-    Output("anomaly_imgs", "children"), [Input("cat_selection", "value")],
+    Output("anomaly_imgs", "children"), 
+    [Input("cat_selection", "value")],
 )
 def display_anomalies(value):
     global analysis_df
@@ -583,7 +585,6 @@ def display_anomalies(value):
     except Exception as e:
         print(e)
         return exception_html
-
 
 @app.callback(
     Output("anomaly_table", "children"),
@@ -615,7 +616,6 @@ def display_anomaly_table(n_clicks, cat, id):
         style={"margin-left": "5%", "margin-right": "5%"},
     )
 
-
 @app.callback(
     Output("anomaly_datatable", "children"),
     [Input("anomaly_datatable", "data_previous")],
@@ -632,60 +632,14 @@ def update_anomaly_table(prev, curr):
         col = "Image ID"
         anomaly_table = anomaly_table[anomaly_table[col] != removed]
 
-
 @app.server.route("/download_analysis/<path:filename>")
 def download_analysis(filename):
     print(filename)
     return send_file(filename, attachment_filename=filename, as_attachment=True)
 
-
 style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
 path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
 tab4_label = "Proportion of object in image"
-
-
-new_analysis_menu = html.Div(
-    [
-        dbc.FormGroup(
-            [
-                dbc.Checklist(
-                    options=[{"label":"Batch analysis","value":"1"}],
-                    value=[],
-                    switch=True,
-                    id="batch-analysis-toggle"
-                )
-            ],
-            style={"margin":"auto","padding-bottom":"0.8%","width":"22%"}
-        ),
-        dbc.Input(
-            type="text",
-            placeholder="Path to images e.g. /Users/me/project/data/val2017",
-            className="mb-3",
-            id="images-upload",
-            style={"margin":"auto","width":"22%"}
-        ),
-        dcc.Upload(
-            [
-                dbc.Button("Upload annotation file (.json)",color="dark", className="mr-1",outline=True,style={"width":"100%"})
-            ],
-            multiple=False,
-            id="annoation-upload",
-            style={"margin":"auto","width":"22%","padding-bottom":"0.8%"}
-        ),
-        html.Div(
-            [
-                dbc.Button(
-                    "Analyse",
-                    color="dark",
-                    className="mr-1",
-                    style={"width":"100%"}
-                )
-            ],
-            style={"margin":"auto","width":"22%"}
-        )
-    ],
-    id="new-analysis-menu"
-)
 
 def display_header(local):
     if local:
@@ -840,6 +794,55 @@ welcome_menu = html.Div(
     id="welcome-menu"
 )
 
+new_analysis_menu = html.Div(
+    [
+        dbc.FormGroup(
+            [
+                dbc.Checklist(
+                    options=[{"label":"Batch analysis","value":"1"}],
+                    value=[],
+                    switch=True,
+                    id="batch-analysis-toggle"
+                )
+            ],
+            style={"margin":"auto","padding-bottom":"0.8%","width":"22%"}
+        ),
+        html.Div(
+            [
+                dbc.Input(
+                    type="text",
+                    placeholder="Path to images e.g. /Users/me/project/data/val2017",
+                    className="mb-3",
+                    id="images-upload",
+                    style={"width":"100%"}
+                )
+            ],
+            style={"margin":"auto","width":"22%","padding-bottom":"0.28%"}
+        ),
+        dcc.Upload(
+            [
+                dbc.Button("Upload annotation file (.json)",color="dark", className="mr-1",outline=True,style={"width":"100%"})
+            ],
+            multiple=False,
+            id="annotation-upload",
+            style={"margin":"auto","width":"22%","padding-bottom":"0.9%"}
+        ),
+        html.Div(
+            [
+                dbc.Button(
+                    "Analyse",
+                    color="dark",
+                    className="mr-1",
+                    style={"width":"100%"},
+                    id="analyse-btn"
+                )
+            ],
+            style={"margin":"auto","width":"22%"}
+        )
+    ],
+    id="new-analysis-menu"
+)
+
 @app.callback(
     Output('reload-button', 'style'),
     Output('new-analysis-menu','style'),
@@ -894,11 +897,3 @@ app.layout = html.Div(
 if __name__ == "__main__":
     # Run on docker
     application.run(host="0.0.0.0", port=port, debug=True)
-
-    # Run locally
-    #app.run_server(port=port, debug=True)
-
-    # Only do analysis
-    # annotation_file = ""
-    # datadir = ""
-    # analyzeDataset(annotation_file, datadir)

@@ -1,4 +1,4 @@
 data/*
 temp/*
 notebooks/*
-assets/*
+assets/*.png
