@@ -341,18 +341,28 @@ def check_img_path(path):
         return False
 
 @app.callback(
+    Output("annotation-upload-btn","color"),
+    Input("annotation-upload","contents"))
+def check_annotations(contents):
+    if contents is None:
+        return "dark"
+    else:
+        content_type, _ = contents.split(",", 1)
+        if content_type == "data:application/json;base64":
+            return "success"
+        else:
+            return "danger"
+
+@app.callback(
     Output("analyse-btn", "disabled"),
     Output("analyse-btn", "color"),
     Input("images-upload", "valid"),
-    Input("annotation-upload", "contents"))
-def check_inputs(valid_path,contents):
-    valid_contents  =  False
-    if contents is not None:
-        content_type, _ = contents.split(",", 1)
-        if content_type == "data:application/json;base64":
-            valid_contents = True
-    if valid_path and valid_contents:
+    Input("annotation-upload-btn", "color"))
+def check_inputs(valid_path,color):
+    if valid_path and color == "success":
         return False,"success"
+    elif valid_path and not color == "danger":
+        return True,"dark"
     else:
         return True,"dark"
 
@@ -820,7 +830,7 @@ new_analysis_menu = html.Div(
         ),
         dcc.Upload(
             [
-                dbc.Button("Upload annotation file (.json)",color="dark", className="mr-1",outline=True,style={"width":"100%","letter-spacing":"2px"})
+                dbc.Button("Upload annotation file (.json)",color="dark", className="mr-1",outline=True,style={"width":"100%","letter-spacing":"2px"},id="annotation-upload-btn")
             ],
             multiple=False,
             id="annotation-upload",
