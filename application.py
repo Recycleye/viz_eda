@@ -763,22 +763,21 @@ navbar = dbc.Navbar(
     [
         dbc.Row(
             [
-                dbc.Col(dbc.NavbarBrand("VIZ EDA", style={"font-size":"2.5rem","white-space":"pre-wrap","font-weight":"bolder","font-family":"sans-serif","margin-left":"12%"}),width=2),
-                dbc.Col(html.H5("Exploratory data analysis for computer vision",style={"color":"#585858","margin-top":"1%","margin-left":"-5.5%"})),
+                dbc.Col(dbc.NavbarBrand("VIZ EDA", style={"font-size":"2.5rem","white-space":"pre-wrap","font-weight":"bolder","font-family":"sans-serif","letter-spacing":"2px"}),width="auto",style={"margin-left":"25px"}),
+                dbc.Col(html.H5("Exploratory data analysis for computer vision",style={"color":"#585858","margin-top":"0.6%"})),
                 dbc.Col(html.A(
                     html.Img(
                         src="https://cdn1.iconfinder.com/data/icons/arrows-elements-outline/128/ic_round_update-128.png",
-                        style={"height":"15%","width":"15%","float":"right"}
+                        style={"height":"25%","width":"25%","float":"right","margin-right":"25px"}
                         ),
                     id="reload-button",
                     href="http://localhost:8080/"
                     )
-                ,width=2
+                ,width="auto",
                 )
             ],
             align="center",
-            no_gutters=False,
-            justify="between",
+            no_gutters=True,
             style={"width":"100%"}
         ),
     ],
@@ -814,14 +813,14 @@ new_analysis_menu = html.Div(
                     placeholder="Path to images e.g. /Users/me/project/data/val2017",
                     className="mb-3",
                     id="images-upload",
-                    style={"width":"100%"}
+                    style={"width":"100%","letter-spacing":"1px"}
                 )
             ],
             style={"margin":"auto","width":"22%","padding-bottom":"0.28%"}
         ),
         dcc.Upload(
             [
-                dbc.Button("Upload annotation file (.json)",color="dark", className="mr-1",outline=True,style={"width":"100%"})
+                dbc.Button("Upload annotation file (.json)",color="dark", className="mr-1",outline=True,style={"width":"100%","letter-spacing":"2px"})
             ],
             multiple=False,
             id="annotation-upload",
@@ -833,7 +832,7 @@ new_analysis_menu = html.Div(
                     "Analyse",
                     color="dark",
                     className="mr-1",
-                    style={"width":"100%"},
+                    style={"width":"100%","letter-spacing":"2px"},
                     id="analyse-btn"
                 )
             ],
