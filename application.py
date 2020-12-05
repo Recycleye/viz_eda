@@ -3,6 +3,7 @@ import os
 import shutil
 from io import BytesIO
 from urllib.parse import quote as urlquote
+import json
 
 import dash
 import dash_bootstrap_components as dbc
@@ -21,7 +22,7 @@ from skimage import io
 from tqdm import tqdm
 
 from app.analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
-
+from overview import compute_overview_data
 
 app = dash.Dash(__name__,external_stylesheets=[dbc.themes.LUX])
 app.config["suppress_callback_exceptions"] = True
@@ -330,43 +331,6 @@ def check_datapath(prev, curr):
         return html.Div(children=invalid)
 
 @app.callback(
-    Output("images-upload", "valid"),
-    Input("images-upload", "value"))
-def check_img_path(path):
-    if path is None:
-        path = ""
-    if os.path.isdir(path):
-        return True
-    else:
-        return False
-
-@app.callback(
-    Output("annotation-upload-btn","color"),
-    Input("annotation-upload","contents"))
-def check_annotations(contents):
-    if contents is None:
-        return "dark"
-    else:
-        content_type, _ = contents.split(",", 1)
-        if content_type == "data:application/json;base64":
-            return "success"
-        else:
-            return "danger"
-
-@app.callback(
-    Output("analyse-btn", "disabled"),
-    Output("analyse-btn", "color"),
-    Input("images-upload", "valid"),
-    Input("annotation-upload-btn", "color"))
-def check_inputs(valid_path,color):
-    if valid_path and color == "success":
-        return False,"success"
-    elif valid_path and not color == "danger":
-        return True,"dark"
-    else:
-        return True,"dark"
-
-@app.callback(
     Output("checkbox_output", "children"), 
     [Input("batch_checkbox", "checked")],
 )
@@ -454,28 +418,6 @@ def analyze_button_online(n_clicks, dataset):
         except Exception as e:
             print(e)
             return exception_html
-
-@app.callback(
-    Output("tabs-figures", "children"), 
-    [Input("tabs", "value")],
-)
-def render_tab(tab):
-    try:
-        if tab == "tab-0":
-            return render_tab0()
-        elif tab == "tab-1":
-            return render_tab1()
-        elif tab == "tab-2":
-            return render_tab2()
-        elif tab == "tab-3":
-            return render_tab3()
-        elif tab == "tab-4":
-            return render_tab4()
-        elif tab == "tab-5":
-            return render_tab5()
-    except Exception as e:
-        print(e)
-        return exception_html
 
 @app.callback(
     Output("obj_hist_out", "children"), 
@@ -774,7 +716,7 @@ navbar = dbc.Navbar(
         dbc.Row(
             [
                 dbc.Col(dbc.NavbarBrand("VIZ EDA", style={"font-size":"2.5rem","white-space":"pre-wrap","font-weight":"bolder","font-family":"sans-serif","letter-spacing":"2px"}),width="auto",style={"margin-left":"25px"}),
-                dbc.Col(html.H5("Exploratory data analysis for computer vision",style={"color":"#585858","margin-top":"0.6%"})),
+                dbc.Col(html.H5("Exploratory data analysis for computer vision",style={"color":"#585858","margin-top":"0.7%"})),
                 dbc.Col(html.A(
                     html.Img(
                         src="https://cdn1.iconfinder.com/data/icons/arrows-elements-outline/128/ic_round_update-128.png",
@@ -852,34 +794,309 @@ new_analysis_menu = html.Div(
     id="new-analysis-menu"
 )
 
+tabs = html.Div(
+    [
+        dbc.Tabs(
+            [
+                dbc.Tab(label="Overview", tab_id="overview-tab",style={"letter-spacing":"2px"}),
+                dbc.Tab(label="Objects per class", tab_id="objs-per-class-tab",style={"letter-spacing":"2px"}),
+                dbc.Tab(label="Images per class", tab_id="imgs-per-class-tab",style={"letter-spacing":"2px"}),
+                dbc.Tab(label="Objects per image", tab_id="objs-per-img-tab",style={"letter-spacing":"2px"}),
+                dbc.Tab(label="Proportion of object in image", tab_id="prop-obj-in-img-tab",style={"letter-spacing":"2px"}),
+                dbc.Tab(label="Anomaly detection", tab_id="anomaly-det-tab",style={"letter-spacing":"2px"}),
+            ],
+            id="new-tabs",
+            style={"display":"flex","justify-content":"center","padding-top":"0.5%"}
+        ),
+        html.Div(id="tabs-content",style={"padding":"1.6%","background":"white"}),
+    ],
+    id="tabs-div"
+)
+
+bridge = dcc.Loading(html.Div(id="bridge",style={"display":"none"}),id="loading-bridge",color="#5cb85c",style={"display":"none"})
+
 @app.callback(
-    Output('reload-button', 'style'),
-    Output('new-analysis-menu','style'),
-    Output('welcome-menu','style'),
-    Input('new-analysis-btn', 'n_clicks'),
-    Input('existing-analyis-btn', 'n_clicks'))
-def show_reload_button(new,existing):
+    Output("images-upload", "valid"),
+    Input("images-upload", "value"))
+def check_img_path(path):
+    if path is None:
+        path = ""
+    if os.path.isdir(path):
+        return True
+    else:
+        return False
+
+@app.callback(
+    Output("annotation-upload-btn","color"),
+    Input("annotation-upload","contents"))
+def check_annotations(contents):
+    if contents is None:
+        return "dark"
+    else:
+        content_type, _ = contents.split(",", 1)
+        if content_type == "data:application/json;base64":
+            return "success"
+        else:
+            return "danger"
+
+@app.callback(
+    Output("analyse-btn", "disabled"),
+    Output("analyse-btn", "color"),
+    Input("images-upload", "valid"),
+    Input("annotation-upload-btn", "color"))
+def check_inputs(valid_path,color):
+    if valid_path and color == "success":
+        return False,"success"
+    elif valid_path and not color == "danger":
+        return True,"dark"
+    else:
+        return True,"dark"
+
+@app.callback(
+    Output("bridge","children"),
+    Output("tabs-div", "style"),
+    [Input("analyse-btn", "n_clicks"),
+    Input("images-upload", "value"),
+    Input("annotation-upload", "contents")])
+def show_tabs(click, images, annotations):
+    if click:
+        path_to_annotations = parse_annotations(annotations)
+        overview_data = compute_overview_data(images, path_to_annotations)
+        if not os.path.isdir("./output"):
+            os.mkdir("./output")
+        path_to_overview_data = "./output/overview_data.json"
+        f = open(path_to_overview_data, 'w')
+        json.dump(overview_data, f)
+        bridge = html.P(str(overview_data["anns_count"]))
+        tabs_div_style = {"display":"block","background":"white","padding-top":"0.3%"}
+    else:
+        bridge = None
+        tabs_div_style = {"display":"none"}
+    return bridge,tabs_div_style
+
+@app.callback(
+    Output("tabs-content", "children"),
+    [Input("new-tabs", "active_tab"),
+    Input("bridge", "children"),
+    Input("analyse-btn", "n_clicks")])
+def show_tabs_contents(tab, bridge, click):
+    if tab == "overview-tab":
+        contents = render_overview()
+    elif tab == "objs-per-class-tab":
+        contents = html.Div("yet to implement")
+        #contents = render_objs_per_class(images, annotations)
+    elif tab == "imgs-per-class-tab":
+        contents = html.Div("yet to implement")
+        #contents = render_imgs_per_class(images, annotations)
+    elif tab == "objs-per-img-tab":
+        contents = html.Div("yet to implement")
+        #contents = render_objs_per_img(images, annotations)
+    elif tab == "prop-obj-in-img-tab":
+        contents = html.Div("yet to implement")
+        #contents = render_prop_objs_per_img(images, annotations)
+    elif tab == "anomaly-det-tab":
+        contents = html.Div("yet to implement")
+        #contents = render_anomaly_det(images, annotations)
+    else:
+        contents = html.Div()
+    return contents
+
+def render_overview():
+    path_to_overview_data = "./output/overview_data.json"
+    if os.path.isfile(path_to_overview_data):
+        f = open(path_to_overview_data)
+        overview_data = json.load(f)
+
+        section_title = overview_data["info"]["description"]
+        section_title = section_title + " overview"
+
+        info_table_header = [html.Thead(html.Tr([html.Th("Info",style={"border-top-right-radius":"0px"}),html.Th("",style={"border-top-left-radius":"0px"})]))]
+        
+        dataset_name = overview_data["info"]["description"]
+        i_row1 = html.Tr([html.Td("Dataset name"), html.Td(dataset_name)])
+
+        dataset_url = overview_data["info"]["url"]
+        i_row2 = html.Tr([html.Td("URL"), html.Td(dataset_url)])
+
+        dataset_version = overview_data["info"]["version"]
+        i_row3 = html.Tr([html.Td("Version"), html.Td(dataset_version)])
+
+        year = overview_data["info"]["year"]
+        i_row4 = html.Tr([html.Td("Year"), html.Td(year)])
+
+        contributor = overview_data["info"]["contributor"]
+        i_row5 = html.Tr([html.Td("Contributor"), html.Td(contributor)])
+
+        date_created = overview_data["info"]["date_created"]
+        i_row6 = html.Tr([html.Td("Date created"), html.Td(date_created)])
+
+        info_table_body = [html.Tbody([i_row1, i_row2, i_row3, i_row4, i_row5, i_row6])]
+
+        info = dbc.Table(info_table_header + info_table_body, striped=True, bordered=True, hover=True, style={"width":"30%"})
+
+        summary_table_header = [html.Thead(html.Tr([html.Th("Summary",style={"border-top-right-radius":"0px"}),html.Th("",style={"border-top-left-radius":"0px"})]))]
+
+        no_classes = str(len(list(overview_data["classes"].keys())))
+        s_row1 = html.Tr([html.Td("No. of classes"), html.Td(no_classes,style={"text-align":"right"})])
+
+        no_anns = str(overview_data["anns_count"])
+        s_row2 = html.Tr([html.Td("No. of annotations"), html.Td(no_anns,style={"text-align":"right"})])
+
+        no_imgs = str(overview_data["imgs_count"])
+        s_row3 = html.Tr([html.Td("No. of images"), html.Td(no_imgs,style={"text-align":"right"})])
+
+        min_anns_per_img = str(overview_data["min_anns_per_img"])
+        s_row4 = html.Tr([html.Td("Min. annotations per image"), html.Td(min_anns_per_img,style={"text-align":"right"})])
+
+        max_anns_per_img = str(overview_data["max_anns_per_img"])
+        s_row5 = html.Tr([html.Td("Max. annotations per image"), html.Td(max_anns_per_img,style={"text-align":"right"})])
+
+        avg_anns_per_img = "{0:.2f}".format(overview_data["avg_anns_per_img"])
+        s_row6 = html.Tr([html.Td("Avg. annotations per image"), html.Td(avg_anns_per_img,style={"text-align":"right"})])
+
+        summary_table_body = [html.Tbody([s_row1, s_row2, s_row3, s_row4, s_row5, s_row6])]
+
+        summary = dbc.Table(summary_table_header + summary_table_body, striped=True, bordered=True, hover=True, style={"width":"30%"})
+
+        warnings_table_header = [html.Thead(html.Tr([html.Th("Warnings",style={"border-top-right-radius":"0px"}),html.Th("",style={"border-top-left-radius":"0px"})]))]
+
+        uniform_distribution = int(overview_data["uniform_distribution"])
+        if uniform_distribution == 1:
+            uniform_distribution = html.Td("Uniform",style={"color":"green","text-align":"right"})
+        else:
+            uniform_distribution = html.Td("Not uniform",style={"color":"red","text-align":"right"})
+        w_row1 = html.Tr([html.Td("Class distribution"), uniform_distribution])
+
+        imgs_with_no_anns = len(list(overview_data["imgs_with_no_anns"]))
+        if imgs_with_no_anns > 0:
+            imgs_with_no_anns = html.Td(imgs_with_no_anns,style={"color":"red","text-align":"right"})
+        else:
+            imgs_with_no_anns = html.Td("None",style={"color":"green","text-align":"right"})
+        w_row2 = html.Tr([html.Td("Images with no annotations"), imgs_with_no_anns])
+
+        anns_with_no_imgs = len(list(overview_data["anns_with_no_imgs"]))
+        if anns_with_no_imgs > 0:
+            anns_with_no_imgs = html.Td(anns_with_no_imgs,style={"color":"red","text-align":"right"})
+        else:
+            anns_with_no_imgs = html.Td("None",style={"color":"green","text-align":"right"})
+        w_row3 = html.Tr([html.Td("Annotations with no images"), anns_with_no_imgs])
+
+        imgs_wrong_dims = len(list(overview_data["imgs_wrong_dims"]))
+        if imgs_wrong_dims > 0:
+            imgs_wrong_dims = html.Td(imgs_wrong_dims,style={"color":"red","text-align":"right"})
+        else:
+            imgs_wrong_dims = html.Td("None",style={"color":"green","text-align":"right"})
+        w_row4 = html.Tr([html.Td("Images with wrong dimensions"), imgs_wrong_dims])
+
+        missing_classes = len(list(overview_data["missing_classes"]))
+        if missing_classes > 0:
+            missing_classes = html.Td(missing_classes,style={"color":"red","text-align":"right"})
+        else:
+            missing_classes = html.Td("None",style={"color":"green","text-align":"right"})
+        w_row5 = html.Tr([html.Td("Missing classes"), missing_classes])
+
+        missing_imgs = len(list(overview_data["missing_imgs"]))
+        if missing_imgs > 0:
+            missing_imgs = html.Td(missing_imgs,style={"color":"red","text-align":"right"})
+        else:
+            missing_imgs = html.Td("None",style={"color":"green","text-align":"right"})
+        w_row6 = html.Tr([html.Td("Missing images"), missing_imgs])
+
+        warnings_table_body = [html.Tbody([w_row1, w_row2, w_row3, w_row4, w_row5, w_row6])]
+
+        warnings = dbc.Table(warnings_table_header + warnings_table_body, striped=True, bordered=True, hover=True, style={"width":"30%"})
+
+        classes = overview_data["classes"]
+
+        class_tables = []
+        for cl in classes:
+            id_string = "ID: {}".format(cl)
+            class_table_header = [html.Thead(html.Tr([html.Th(classes[cl]["name"],style={"border-top-right-radius":"0px"}),html.Th(id_string,style={"text-align":"right","border-top-left-radius":"0px"})]))]
+            anns_string = str(classes[cl]["anns_count"]) + " (" + "{0:.2f}".format(classes[cl]["anns_prop"]) + "%)"
+            cl_row1 = html.Tr([html.Td("No. of annotations"), html.Td(anns_string,style={"text-align":"right"})])
+            imgs_string = str(classes[cl]["imgs_count"]) + " (" + "{0:.2f}".format(classes[cl]["imgs_prop"]) + "%)"
+            cl_row2 = html.Tr([html.Td("No. of images"), html.Td(imgs_string,style={"text-align":"right"})])
+            unique_imgs_string = str(classes[cl]["unique_imgs_count"]) + " (" + "{0:.2f}".format(classes[cl]["unique_imgs_prop"]) + "%)"
+            cl_row3 = html.Tr([html.Td("No. of unique images"), html.Td(unique_imgs_string,style={"text-align":"right"})])
+            class_table_body = [html.Tbody([cl_row1,cl_row2,cl_row3])]
+            class_table = dbc.Table(class_table_header + class_table_body, striped=True, bordered=True, hover=True, style={"width":"30%"})
+            class_tables.append(class_table)
+        
+        overview = html.Div([
+            html.H4(section_title,style={"text-transform":"capitalize","padding-bottom":"1%","letter-spacing":"2px","font-size":"x-large"}),
+            html.Div([info,summary,warnings],style={"display":"flex","justify-content":"space-between","padding-bottom":"1%"}),
+            html.H4("Classes",style={"text-transform":"capitalize","padding-bottom":"1%","letter-spacing":"2px","font-size":"x-large"}),
+            html.Div(class_tables)
+        ]
+        )
+    else:
+        overview = html.Div()
+    return overview
+
+def parse_annotations(annotations):
+    _, annotations_contents = annotations.split(",", 1)
+    decoded = base64.b64decode(annotations_contents).decode("UTF-8")
+    if not os.path.isdir("./output"):
+        os.mkdir("./output")
+    path_to_annotations = "./output/annotations.json"
+    f = open(path_to_annotations, 'w')
+    f.write(decoded)
+    return path_to_annotations
+
+def render_objs_per_class(images, annotations):
+    contents = html.Div([html.P("Hello World!")])
+    return contents
+
+def render_imgs_per_class(images, annotations):
+    pass
+
+def render_objs_per_img(images, annotations):
+    pass
+
+def render_prop_objs_per_img(images, annotations):
+    pass
+
+def render_anomaly_det(images, annotations):
+    pass
+
+@app.callback(
+    Output("reload-button", "style"),
+    Output("new-analysis-menu", "style"),
+    Output("welcome-menu", "style"),
+    Output("loading-bridge", "style"),
+    Input("new-analysis-btn", "n_clicks"),
+    Input("existing-analyis-btn", "n_clicks"),
+    Input("analyse-btn", "n_clicks"))
+def show_reload_button(new,existing,analyse):
     if new:
         reload_btn_style = {"display":"block"}
         new_analysis_menu_style = {"display":"block","padding-top":"18%"}
         welcome_menu_style = {"display":"none"}
-        return reload_btn_style, new_analysis_menu_style, welcome_menu_style
+        loading_style = {"display":"none"}
     elif existing:
         reload_btn_style = {"display":"block"}
         new_analysis_menu_style = {"display":"none"}
         welcome_menu_style = {"display":"none"}
-        return reload_btn_style, new_analysis_menu_style, welcome_menu_style
+        loading_style = {"display":"none"}
     else:
         reload_btn_style = {"display":"none"}
         new_analysis_menu_style = {"display":"none"}
         welcome_menu_style = {"display":"flex","padding-top":"22.5%"}
-        return reload_btn_style, new_analysis_menu_style, welcome_menu_style
+        loading_style = {"display":"none"}
+    if analyse:
+        reload_btn_style = {"display":"block"}
+        new_analysis_menu_style = {"display":"none"}
+        welcome_menu_style = {"display":"none"}
+        loading_style = {"display":"block","padding-top":"50%"}
+    return reload_btn_style, new_analysis_menu_style, welcome_menu_style, loading_style
 
 app.layout = html.Div(
     children=[
         navbar,
         welcome_menu,
         new_analysis_menu,
+        bridge,
+        tabs,
         header,
         html.Div(id="output-ann-data-upload", style={"display": "none"}),
         html.Div(id="output-analysis-data-upload", style={"display": "none"}),
