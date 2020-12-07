@@ -914,7 +914,7 @@ def render_overview():
         info_table_header = [html.Thead(html.Tr([html.Th("Info",style={"border-top-right-radius":"0px","font-size":"large","font-weight":"900","background":"cornflowerblue"}),html.Th("",style={"border-top-left-radius":"0px","background":"cornflowerblue"})]))]
         
         if "description" in overview_data["info"]:
-            dataset_name = "Keymakr Dataset" #overview_data["info"]["description"]
+            dataset_name = overview_data["info"]["description"]
         else:
             dataset_name = "N.A."
         i_row1 = html.Tr([html.Td("Dataset name"), html.Td(dataset_name,style={"font-weight":"bold","text-align":"right"})])
