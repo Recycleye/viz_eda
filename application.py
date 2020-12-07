@@ -916,7 +916,10 @@ def render_overview():
         dataset_name = overview_data["info"]["description"]
         i_row1 = html.Tr([html.Td("Dataset name"), html.Td(dataset_name,style={"font-weight":"bold","text-align":"right"})])
 
-        dataset_url = overview_data["info"]["url"]
+        if "url" in overview_data["info"]:
+            dataset_url = overview_data["info"]["url"]
+        else:
+            dataset_url = "N.A."
         i_row2 = html.Tr([html.Td("URL"), html.Td(dataset_url,style={"font-weight":"bold","text-align":"right"})])
 
         dataset_version = overview_data["info"]["version"]
