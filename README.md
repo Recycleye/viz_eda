@@ -1,16 +1,24 @@
 # VIZ EDA
-This document provides a tutorial on how to use the app.
+An exploratory data analysis tool to facilitate the visualisation of complex computer vision and object recognition datasets.  
 
-## Quick start
-1. Upload your COCO-dataset styled JSON annotation file.
-2. Input the absolute path to your image data. For example: "C:/Users/me/project/data/val2017images".
-3. Click "ANALYZE". Analyzing takes about 5-20 minutes, depending on the size of your data.
+## Run a new analysis
+You will need image data and a COCO-dataset styled annotation file (.JSON)
+1. Click "NEW ANALYSIS" on the home page.
+![](assets/new_analysis.png)
+2. Input the absolute path to your image data. For example: "/Users/me/project/data/val2017"
+3. Upload your COCO-dataset styled JSON annotation file
+![](assets/new_analysis_menu.png)
+4. Click "ANALYSE". 
+Analysing can take about 5-20 minutes, depending on the size of your data.
 
-![](assets/start.png)
+## Loading an existing analysis
+You will need a feather file containing the results of a previous VIZ EDA analysis. This allows for quick visualization and exploratory data analysis without having to run the analysis again.
 
-## Loading from feather
-The app outputs a feather file after running the analysis. The "analysis{datetime}" file can be loaded into the app to
-allow for quick visualization and exploratory data analysis without having to run the analysis again.
+1. Click "EXISTING ANALISYS" on the home page.
+![](assets/existing_analysis.png)
+2. Upload your feather file
+![](assets/existing_analysis_menu.png)
+3. Click "VISUALISE"
 
 ## Batch analysis
 The app can process multiple datasets where multiple annotations and images are merged before analysis. Your data
