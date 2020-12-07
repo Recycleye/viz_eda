@@ -55,8 +55,9 @@
 
 .nav-tabs .nav-link.active, .nav-tabs .nav-item.show .nav-link {
     color: black;
-    background-color: lightgray;
+    background-color: rgb(204, 184, 255);
     border-color: black;
+    font-weight: bold;
 }
 
 .nav-tabs .nav-link {

@@ -911,96 +911,96 @@ def render_overview():
         section_title = overview_data["info"]["description"]
         section_title = section_title + " overview"
 
-        info_table_header = [html.Thead(html.Tr([html.Th("Info",style={"border-top-right-radius":"0px"}),html.Th("",style={"border-top-left-radius":"0px"})]))]
+        info_table_header = [html.Thead(html.Tr([html.Th("Info",style={"border-top-right-radius":"0px","font-size":"large","font-weight":"900","background":"cornflowerblue"}),html.Th("",style={"border-top-left-radius":"0px","background":"cornflowerblue"})]))]
         
         dataset_name = overview_data["info"]["description"]
-        i_row1 = html.Tr([html.Td("Dataset name"), html.Td(dataset_name)])
+        i_row1 = html.Tr([html.Td("Dataset name"), html.Td(dataset_name,style={"font-weight":"bold","text-align":"right"})])
 
         dataset_url = overview_data["info"]["url"]
-        i_row2 = html.Tr([html.Td("URL"), html.Td(dataset_url)])
+        i_row2 = html.Tr([html.Td("URL"), html.Td(dataset_url,style={"font-weight":"bold","text-align":"right"})])
 
         dataset_version = overview_data["info"]["version"]
-        i_row3 = html.Tr([html.Td("Version"), html.Td(dataset_version)])
+        i_row3 = html.Tr([html.Td("Version"), html.Td(dataset_version,style={"font-weight":"bold","text-align":"right"})])
 
         year = overview_data["info"]["year"]
-        i_row4 = html.Tr([html.Td("Year"), html.Td(year)])
+        i_row4 = html.Tr([html.Td("Year"), html.Td(year,style={"font-weight":"bold","text-align":"right"})])
 
         contributor = overview_data["info"]["contributor"]
-        i_row5 = html.Tr([html.Td("Contributor"), html.Td(contributor)])
+        i_row5 = html.Tr([html.Td("Contributor"), html.Td(contributor,style={"font-weight":"bold","text-align":"right"})])
 
         date_created = overview_data["info"]["date_created"]
-        i_row6 = html.Tr([html.Td("Date created"), html.Td(date_created)])
+        i_row6 = html.Tr([html.Td("Date created"), html.Td(date_created,style={"font-weight":"bold","text-align":"right"})])
 
         info_table_body = [html.Tbody([i_row1, i_row2, i_row3, i_row4, i_row5, i_row6])]
 
         info = dbc.Table(info_table_header + info_table_body, striped=True, bordered=True, hover=True, style={"width":"30%"})
 
-        summary_table_header = [html.Thead(html.Tr([html.Th("Summary",style={"border-top-right-radius":"0px"}),html.Th("",style={"border-top-left-radius":"0px"})]))]
+        summary_table_header = [html.Thead(html.Tr([html.Th("Summary",style={"border-top-right-radius":"0px","font-size":"large","font-weight":"900","background":"lightgreen"}),html.Th("",style={"border-top-left-radius":"0px","background":"lightgreen"})]))]
 
         no_classes = str(len(list(overview_data["classes"].keys())))
-        s_row1 = html.Tr([html.Td("No. of classes"), html.Td(no_classes,style={"text-align":"right"})])
+        s_row1 = html.Tr([html.Td("No. of classes"), html.Td(no_classes,style={"font-weight":"bold","text-align":"right"})])
 
         no_anns = str(overview_data["anns_count"])
-        s_row2 = html.Tr([html.Td("No. of annotations"), html.Td(no_anns,style={"text-align":"right"})])
+        s_row2 = html.Tr([html.Td("No. of annotations"), html.Td(no_anns,style={"font-weight":"bold","text-align":"right"})])
 
         no_imgs = str(overview_data["imgs_count"])
-        s_row3 = html.Tr([html.Td("No. of images"), html.Td(no_imgs,style={"text-align":"right"})])
+        s_row3 = html.Tr([html.Td("No. of images"), html.Td(no_imgs,style={"font-weight":"bold","text-align":"right"})])
 
         min_anns_per_img = str(overview_data["min_anns_per_img"])
-        s_row4 = html.Tr([html.Td("Min. annotations per image"), html.Td(min_anns_per_img,style={"text-align":"right"})])
+        s_row4 = html.Tr([html.Td("Min. annotations per image"), html.Td(min_anns_per_img,style={"font-weight":"bold","text-align":"right"})])
 
         max_anns_per_img = str(overview_data["max_anns_per_img"])
-        s_row5 = html.Tr([html.Td("Max. annotations per image"), html.Td(max_anns_per_img,style={"text-align":"right"})])
+        s_row5 = html.Tr([html.Td("Max. annotations per image"), html.Td(max_anns_per_img,style={"font-weight":"bold","text-align":"right"})])
 
         avg_anns_per_img = "{0:.2f}".format(overview_data["avg_anns_per_img"])
-        s_row6 = html.Tr([html.Td("Avg. annotations per image"), html.Td(avg_anns_per_img,style={"text-align":"right"})])
+        s_row6 = html.Tr([html.Td("Avg. annotations per image"), html.Td(avg_anns_per_img,style={"font-weight":"bold","text-align":"right"})])
 
         summary_table_body = [html.Tbody([s_row1, s_row2, s_row3, s_row4, s_row5, s_row6])]
 
         summary = dbc.Table(summary_table_header + summary_table_body, striped=True, bordered=True, hover=True, style={"width":"30%"})
 
-        warnings_table_header = [html.Thead(html.Tr([html.Th("Warnings",style={"border-top-right-radius":"0px"}),html.Th("",style={"border-top-left-radius":"0px"})]))]
+        warnings_table_header = [html.Thead(html.Tr([html.Th("Warnings",style={"border-top-right-radius":"0px","font-size":"large","font-weight":"900","background":"#f5d658"}),html.Th("",style={"border-top-left-radius":"0px","background":"#f5d658"})]))]
 
         uniform_distribution = int(overview_data["uniform_distribution"])
         if uniform_distribution == 1:
-            uniform_distribution = html.Td("Uniform",style={"color":"green","text-align":"right"})
+            uniform_distribution = html.Td("Uniform",style={"color":"green","text-align":"right","font-weight":"bold"})
         else:
-            uniform_distribution = html.Td("Not uniform",style={"color":"red","text-align":"right"})
+            uniform_distribution = html.Td("Not uniform",style={"color":"red","text-align":"right","font-weight":"bold"})
         w_row1 = html.Tr([html.Td("Class distribution"), uniform_distribution])
 
         imgs_with_no_anns = len(list(overview_data["imgs_with_no_anns"]))
         if imgs_with_no_anns > 0:
-            imgs_with_no_anns = html.Td(imgs_with_no_anns,style={"color":"red","text-align":"right"})
+            imgs_with_no_anns = html.Td(imgs_with_no_anns,style={"color":"red","text-align":"right","font-weight":"bold"})
         else:
-            imgs_with_no_anns = html.Td("None",style={"color":"green","text-align":"right"})
+            imgs_with_no_anns = html.Td("None",style={"color":"green","text-align":"right","font-weight":"bold"})
         w_row2 = html.Tr([html.Td("Images with no annotations"), imgs_with_no_anns])
 
         anns_with_no_imgs = len(list(overview_data["anns_with_no_imgs"]))
         if anns_with_no_imgs > 0:
-            anns_with_no_imgs = html.Td(anns_with_no_imgs,style={"color":"red","text-align":"right"})
+            anns_with_no_imgs = html.Td(anns_with_no_imgs,style={"color":"red","text-align":"right","font-weight":"bold"})
         else:
-            anns_with_no_imgs = html.Td("None",style={"color":"green","text-align":"right"})
+            anns_with_no_imgs = html.Td("None",style={"color":"green","text-align":"right","font-weight":"bold"})
         w_row3 = html.Tr([html.Td("Annotations with no images"), anns_with_no_imgs])
 
         imgs_wrong_dims = len(list(overview_data["imgs_wrong_dims"]))
         if imgs_wrong_dims > 0:
-            imgs_wrong_dims = html.Td(imgs_wrong_dims,style={"color":"red","text-align":"right"})
+            imgs_wrong_dims = html.Td(imgs_wrong_dims,style={"color":"red","text-align":"right","font-weight":"bold"})
         else:
-            imgs_wrong_dims = html.Td("None",style={"color":"green","text-align":"right"})
+            imgs_wrong_dims = html.Td("None",style={"color":"green","text-align":"right","font-weight":"bold"})
         w_row4 = html.Tr([html.Td("Images with wrong dimensions"), imgs_wrong_dims])
 
         missing_classes = len(list(overview_data["missing_classes"]))
         if missing_classes > 0:
-            missing_classes = html.Td(missing_classes,style={"color":"red","text-align":"right"})
+            missing_classes = html.Td(missing_classes,style={"color":"red","text-align":"right","font-weight":"bold"})
         else:
-            missing_classes = html.Td("None",style={"color":"green","text-align":"right"})
+            missing_classes = html.Td("None",style={"color":"green","text-align":"right","font-weight":"bold"})
         w_row5 = html.Tr([html.Td("Missing classes"), missing_classes])
 
         missing_imgs = len(list(overview_data["missing_imgs"]))
         if missing_imgs > 0:
-            missing_imgs = html.Td(missing_imgs,style={"color":"red","text-align":"right"})
+            missing_imgs = html.Td(missing_imgs,style={"color":"red","text-align":"right","font-weight":"bold"})
         else:
-            missing_imgs = html.Td("None",style={"color":"green","text-align":"right"})
+            missing_imgs = html.Td("None",style={"color":"green","text-align":"right","font-weight":"bold"})
         w_row6 = html.Tr([html.Td("Missing images"), missing_imgs])
 
         warnings_table_body = [html.Tbody([w_row1, w_row2, w_row3, w_row4, w_row5, w_row6])]
@@ -1012,13 +1012,13 @@ def render_overview():
         class_tables = []
         for cl in classes:
             id_string = "ID: {}".format(cl)
-            class_table_header = [html.Thead(html.Tr([html.Th(classes[cl]["name"],style={"border-top-right-radius":"0px"}),html.Th(id_string,style={"text-align":"right","border-top-left-radius":"0px"})]))]
+            class_table_header = [html.Thead(html.Tr([html.Th(classes[cl]["name"],style={"border-top-right-radius":"0px","background":"lightcoral"}),html.Th(id_string,style={"text-align":"right","border-top-left-radius":"0px","background":"lightcoral"})]))]
             anns_string = str(classes[cl]["anns_count"]) + " (" + "{0:.2f}".format(classes[cl]["anns_prop"]) + "%)"
-            cl_row1 = html.Tr([html.Td("No. of annotations"), html.Td(anns_string,style={"text-align":"right"})])
+            cl_row1 = html.Tr([html.Td("No. of annotations"), html.Td(anns_string,style={"text-align":"right","font-weight":"bold"})])
             imgs_string = str(classes[cl]["imgs_count"]) + " (" + "{0:.2f}".format(classes[cl]["imgs_prop"]) + "%)"
-            cl_row2 = html.Tr([html.Td("No. of images"), html.Td(imgs_string,style={"text-align":"right"})])
+            cl_row2 = html.Tr([html.Td("No. of images"), html.Td(imgs_string,style={"text-align":"right","font-weight":"bold"})])
             unique_imgs_string = str(classes[cl]["unique_imgs_count"]) + " (" + "{0:.2f}".format(classes[cl]["unique_imgs_prop"]) + "%)"
-            cl_row3 = html.Tr([html.Td("No. of unique images"), html.Td(unique_imgs_string,style={"text-align":"right"})])
+            cl_row3 = html.Tr([html.Td("No. of unique images"), html.Td(unique_imgs_string,style={"text-align":"right","font-weight":"bold"})])
             class_table_body = [html.Tbody([cl_row1,cl_row2,cl_row3])]
             class_table = dbc.Table(class_table_header + class_table_body, striped=True, bordered=True, hover=True)
             class_tables.append(class_table)
