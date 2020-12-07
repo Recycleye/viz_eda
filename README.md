@@ -124,7 +124,5 @@ banana anomaly             |  apple anomaly          |  orange anomaly
 
 ## Authors
 (In alphabetical order)
-* **Benedetta Delfino** - [GitHub](https://github.com/b-delfino)
-* **Peter Hedley** - [GitHub](https://github.com/PeterHedley94)
 * **Davide Locatelli** - [GitHub](https://github.com/dl2198)
 * **Ricky Ma** - [GitHub](https://github.com/ricky-ma)
