@@ -48,9 +48,33 @@ JSON and image folder can be kept for future dataset analysis without batch proc
 ## Exploratory data analysis
 
 ### Overview
-Pandas profiling visualization of overall analysis table. Variables include objects per class, images per class, objects
-per image, proportion of object in image, and roughness of segmentation.
-![](assets/overview.png)
+This tab provides an overview of the dataset analysis.
+
+At the top of the page there are three tables:
+1. The first table displays dataset information.
+2. The second table shows a summary of the dataset:
+  * Number of classes
+  * Number of annotations
+  * Number of images
+  * Min., max., and avg. number of annotations per image
+3. The third table reports the analysis warnings: 
+  * Whether the class distribution is uniform or not (i.e. whether there are classes that represent more than 80% of the dataset or less than 5%)
+  * Whether there are images with no annotations
+  * Whether there are annotations with no images
+  * Whether there are images with wrong dimensions (assuming the Recycleye standard of 1920x1080)
+  * Whether there are missing classes (i.e. are in "categories" but not in annotations)
+  * Whether there are missing images (i.e. are referenced in annotations but are not in the folder provided to the app)
+
+The rest of the page provides a summary of each class:
+* Class name
+* Class ID
+* Number of annotations
+* Percentage of annotations wrt total number of annotations in the dataset
+* Number of images
+* Percentage of images wrt total number of images in the dataset
+* Number of unique images, i.e. where there are only annotations of that class
+* Percentage of unique images wrt total number of images for that class
+* 3 sample images of the class
 
 ### Objects per class
 The bar graph displays the number of objects in the dataset provided, sorted by category. The pie chart shows a
