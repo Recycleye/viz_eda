@@ -913,7 +913,10 @@ def render_overview():
 
         info_table_header = [html.Thead(html.Tr([html.Th("Info",style={"border-top-right-radius":"0px","font-size":"large","font-weight":"900","background":"cornflowerblue"}),html.Th("",style={"border-top-left-radius":"0px","background":"cornflowerblue"})]))]
         
-        dataset_name = overview_data["info"]["description"]
+        if "description" in overview_data["info"]:
+            dataset_name = "Keymakr Dataset" #overview_data["info"]["description"]
+        else:
+            dataset_name = "N.A."
         i_row1 = html.Tr([html.Td("Dataset name"), html.Td(dataset_name,style={"font-weight":"bold","text-align":"right"})])
 
         if "url" in overview_data["info"]:
@@ -922,16 +925,28 @@ def render_overview():
             dataset_url = "N.A."
         i_row2 = html.Tr([html.Td("URL"), html.Td(dataset_url,style={"font-weight":"bold","text-align":"right"})])
 
-        dataset_version = overview_data["info"]["version"]
+        if "version" in overview_data["info"]:
+            dataset_version = overview_data["info"]["version"]
+        else:
+            dataset_version = "N.A."
         i_row3 = html.Tr([html.Td("Version"), html.Td(dataset_version,style={"font-weight":"bold","text-align":"right"})])
 
-        year = overview_data["info"]["year"]
+        if "year" in overview_data["info"]:
+            year = overview_data["info"]["year"]
+        else:
+            year = "N.A."
         i_row4 = html.Tr([html.Td("Year"), html.Td(year,style={"font-weight":"bold","text-align":"right"})])
 
-        contributor = overview_data["info"]["contributor"]
+        if "contributor" in overview_data["info"]:
+            contributor = overview_data["info"]["contributor"]
+        else:
+            contributor = "N.A."
         i_row5 = html.Tr([html.Td("Contributor"), html.Td(contributor,style={"font-weight":"bold","text-align":"right"})])
 
-        date_created = overview_data["info"]["date_created"]
+        if "date_created" in overview_data["info"]:
+            date_created = overview_data["info"]["date_created"]
+        else:
+            date_created = "N.A."
         i_row6 = html.Tr([html.Td("Date created"), html.Td(date_created,style={"font-weight":"bold","text-align":"right"})])
 
         info_table_body = [html.Tbody([i_row1, i_row2, i_row3, i_row4, i_row5, i_row6])]
