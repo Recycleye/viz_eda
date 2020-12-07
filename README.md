@@ -1,10 +1,19 @@
-# VIZ EDA
-This document provides a tutorial on how to use the app.
+<br />
+<h1 align="left">VIZ EDA</h3>
+<p align="left">
+    Exploratory data analysis for computer vision<br />
+</p>
+</p>
 
-## Quick start
-1. Upload your COCO-dataset styled JSON annotation file.
-2. Input the absolute path to your image data. For example: "C:/Users/me/project/data/val2017images".
-3. Click "ANALYZE". Analyzing takes about 5-20 minutes, depending on the size of your data.
+# VIZ EDA
+An exploratory data analysis tool to facilitate the visualisation of complex computer vision and object recognition datasets.  
+
+## Getting Started
+To run a new analysis click "NEW ANALYSIS" on the home page.
+1. Input the absolute path to your image data. For example: "/Users/me/project/data/val2017"
+2. Upload your COCO-dataset styled JSON annotation file
+3. Click "ANALYSE". 
+Analysing can take about 5-20 minutes, depending on the size of your data.
 
 ![](assets/start.png)
 
