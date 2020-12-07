@@ -959,7 +959,7 @@ def render_overview():
 
         summary = dbc.Table(summary_table_header + summary_table_body, striped=True, bordered=True, hover=True, style={"width":"30%"})
 
-        warnings_table_header = [html.Thead(html.Tr([html.Th("Warnings",style={"border-top-right-radius":"0px","font-size":"large","font-weight":"900","background":"#f5d658"}),html.Th("",style={"border-top-left-radius":"0px","background":"#f5d658"})]))]
+        warnings_table_header = [html.Thead(html.Tr([html.Th("Warnings",style={"border-top-right-radius":"0px","font-size":"large","font-weight":"900","background":"#f5dd7d"}),html.Th("",style={"border-top-left-radius":"0px","background":"#f5dd7d"})]))]
 
         uniform_distribution = int(overview_data["uniform_distribution"])
         if uniform_distribution == 1:
@@ -1009,10 +1009,14 @@ def render_overview():
 
         classes = overview_data["classes"]
 
+        colors = ["#ccb8ff","cornflowerblue","lightgreen","#f5dd7d"]
+        i = 0
+        lencol = len(colors)
+
         class_tables = []
         for cl in classes:
             id_string = "ID: {}".format(cl)
-            class_table_header = [html.Thead(html.Tr([html.Th(classes[cl]["name"],style={"border-top-right-radius":"0px","background":"lightcoral"}),html.Th(id_string,style={"text-align":"right","border-top-left-radius":"0px","background":"lightcoral"})]))]
+            class_table_header = [html.Thead(html.Tr([html.Th(classes[cl]["name"],style={"border-top-right-radius":"0px","background":colors[i]}),html.Th(id_string,style={"text-align":"right","border-top-left-radius":"0px","background":colors[i]})]))]
             anns_string = str(classes[cl]["anns_count"]) + " (" + "{0:.2f}".format(classes[cl]["anns_prop"]) + "%)"
             cl_row1 = html.Tr([html.Td("No. of annotations"), html.Td(anns_string,style={"text-align":"right","font-weight":"bold"})])
             imgs_string = str(classes[cl]["imgs_count"]) + " (" + "{0:.2f}".format(classes[cl]["imgs_prop"]) + "%)"
@@ -1022,12 +1026,14 @@ def render_overview():
             class_table_body = [html.Tbody([cl_row1,cl_row2,cl_row3])]
             class_table = dbc.Table(class_table_header + class_table_body, striped=True, bordered=True, hover=True)
             class_tables.append(class_table)
+            i += 1
+            i = i%lencol
 
+        i = 0
         class_images = []
         for cl in classes:
             unique_imgs_list = classes[cl]["unique_imgs"]
             imgs_list = classes[cl]["imgs"]
-            children = []
             if len(unique_imgs_list) > 3:
                 chosen_list = unique_imgs_list
             elif len(imgs_list) > 3:
@@ -1037,21 +1043,23 @@ def render_overview():
                 encoded_image1 = base64.b64encode(open(random_paths[0], 'rb').read())
                 encoded_image2 = base64.b64encode(open(random_paths[1], 'rb').read())
                 encoded_image3 = base64.b64encode(open(random_paths[2], 'rb').read())
-                row = dbc.Row([dbc.Col(dbc.Card([dbc.CardImg(src='data:image/png;base64,{}'.format(encoded_image1.decode()),style={"height":"100%"})],style={"height":"100%","justify-content":"center"}),style={"height":"100%"}),
+                row = dbc.Row([dbc.Col(class_tables[i]),
+                dbc.Col(dbc.Card([dbc.CardImg(src='data:image/png;base64,{}'.format(encoded_image1.decode()),style={"height":"100%"})],style={"height":"100%","justify-content":"center"}),style={"height":"100%"}),
                 dbc.Col(dbc.Card([dbc.CardImg(src='data:image/png;base64,{}'.format(encoded_image2.decode()),style={"height":"100%"})],style={"height":"100%","justify-content":"center"}),style={"height":"100%"}),
                 dbc.Col(dbc.Card([dbc.CardImg(src='data:image/png;base64,{}'.format(encoded_image3.decode()),style={"height":"100%"})],style={"height":"100%","justify-content":"center"}),style={"height":"100%"})],
-                style={"height":"0.63%","margin-bottom":"1.3%"})
+                style={"height":"0.62%","margin-bottom":"3%","border-bottom":"1px solid darkslategray","padding-bottom":"3%"})
                 class_images.append(row)
             else:
                 img_card = dbc.Card([dbc.CardBody("no image available")],style={"height":"1.15%","margin-bottom":"2%"})
                 class_images.append(img_card)
+            i += 1
 
         overview = html.Div([
             html.H4(section_title,style={"text-transform":"capitalize","padding-bottom":"1%","letter-spacing":"2px","font-size":"x-large"}),
             html.Div([info,summary,warnings],style={"display":"flex","justify-content":"space-between","padding-bottom":"1%"}),
             html.H4("Classes",style={"text-transform":"capitalize","padding-bottom":"1%","letter-spacing":"2px","font-size":"x-large"}),
-            html.Div([html.Div(class_tables, style={"width":"30%","margin-right":"5%"}),html.Div(class_images, style={"width":"65%"})], style={"display":"flex"})
-            #html.Div(class_tables)
+            #html.Div([html.Div(class_tables, style={"width":"30%","margin-right":"5%"}),html.Div(class_images, style={"width":"65%"})], style={"display":"flex"})
+            html.Div(class_images)
         ]
         )
     else:
