@@ -4,6 +4,7 @@ import shutil
 from io import BytesIO
 from urllib.parse import quote as urlquote
 import json
+import random
 
 import dash
 import dash_bootstrap_components as dbc
@@ -1019,14 +1020,38 @@ def render_overview():
             unique_imgs_string = str(classes[cl]["unique_imgs_count"]) + " (" + "{0:.2f}".format(classes[cl]["unique_imgs_prop"]) + "%)"
             cl_row3 = html.Tr([html.Td("No. of unique images"), html.Td(unique_imgs_string,style={"text-align":"right"})])
             class_table_body = [html.Tbody([cl_row1,cl_row2,cl_row3])]
-            class_table = dbc.Table(class_table_header + class_table_body, striped=True, bordered=True, hover=True, style={"width":"30%"})
+            class_table = dbc.Table(class_table_header + class_table_body, striped=True, bordered=True, hover=True)
             class_tables.append(class_table)
-        
+
+        class_images = []
+        for cl in classes:
+            unique_imgs_list = classes[cl]["unique_imgs"]
+            imgs_list = classes[cl]["imgs"]
+            children = []
+            if len(unique_imgs_list) > 3:
+                chosen_list = unique_imgs_list
+            elif len(imgs_list) > 3:
+                chosen_list = imgs_list
+            if chosen_list:
+                random_paths = random.sample(chosen_list, 3)
+                encoded_image1 = base64.b64encode(open(random_paths[0], 'rb').read())
+                encoded_image2 = base64.b64encode(open(random_paths[1], 'rb').read())
+                encoded_image3 = base64.b64encode(open(random_paths[2], 'rb').read())
+                row = dbc.Row([dbc.Col(dbc.Card([dbc.CardImg(src='data:image/png;base64,{}'.format(encoded_image1.decode()),style={"height":"100%"})],style={"height":"100%","justify-content":"center"}),style={"height":"100%"}),
+                dbc.Col(dbc.Card([dbc.CardImg(src='data:image/png;base64,{}'.format(encoded_image2.decode()),style={"height":"100%"})],style={"height":"100%","justify-content":"center"}),style={"height":"100%"}),
+                dbc.Col(dbc.Card([dbc.CardImg(src='data:image/png;base64,{}'.format(encoded_image3.decode()),style={"height":"100%"})],style={"height":"100%","justify-content":"center"}),style={"height":"100%"})],
+                style={"height":"0.63%","margin-bottom":"1.3%"})
+                class_images.append(row)
+            else:
+                img_card = dbc.Card([dbc.CardBody("no image available")],style={"height":"1.15%","margin-bottom":"2%"})
+                class_images.append(img_card)
+
         overview = html.Div([
             html.H4(section_title,style={"text-transform":"capitalize","padding-bottom":"1%","letter-spacing":"2px","font-size":"x-large"}),
             html.Div([info,summary,warnings],style={"display":"flex","justify-content":"space-between","padding-bottom":"1%"}),
             html.H4("Classes",style={"text-transform":"capitalize","padding-bottom":"1%","letter-spacing":"2px","font-size":"x-large"}),
-            html.Div(class_tables)
+            html.Div([html.Div(class_tables, style={"width":"30%","margin-right":"5%"}),html.Div(class_images, style={"width":"65%"})], style={"display":"flex"})
+            #html.Div(class_tables)
         ]
         )
     else:

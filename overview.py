@@ -64,7 +64,12 @@ def compute_overview_data(path_to_images, path_to_annotations):
             / classes[cl]["imgs_count"]
         img_files = [img["file_name"] for img in images \
             if img["id"] in classes[cl]["imgs"]]
+        img_files = [os.path.join(path_to_images, img_path.split('/')[-1]) for img_path in img_files]
         classes[cl]["imgs"] = img_files
+        unique_img_files = [img["file_name"] for img in images \
+            if img["id"] in classes[cl]["unique_imgs"]]
+        unique_img_files = [os.path.join(path_to_images, img_path.split('/')[-1]) for img_path in unique_img_files]
+        classes[cl]["unique_imgs"] = unique_img_files
 
     class_proportions = [classes[cl]["anns_prop"] for cl in classes]
     uniform_distribution = 1
