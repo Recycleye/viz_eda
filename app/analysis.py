@@ -313,4 +313,5 @@ def analyze_dataset(annotation_file, imgs_path):
         os.mkdir(outdir)
     analysis_path = os.path.join(outdir, outname)
     df.to_feather(analysis_path)
+    os.chdir("./app")
     return df, analysis_path

@@ -23,6 +23,8 @@ def compute_overview_data(path_to_images, path_to_annotations):
         classes[cat["id"]]["unique_imgs_prop"] = 0
         classes[cat["id"]]["imgs"] = []
         classes[cat["id"]]["anns"] = []
+        classes[cat["id"]]["img_files"] = []
+        classes[cat["id"]]["unique_img_files"] = []
     
     anns_per_img = {}
     classes_in_anns = set()
@@ -103,4 +105,9 @@ def compute_overview_data(path_to_images, path_to_annotations):
         "missing_imgs" : missing_imgs
     }
 
-    return overview_data
+    if not os.path.isdir("./output"):
+        os.mkdir("./output")
+    path_to_overview_data = "./output/overview_data.json"
+    overview_data_file = open(path_to_overview_data, 'w')
+    json.dump(overview_data, overview_data_file)
+    return path_to_overview_data
