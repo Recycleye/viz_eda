@@ -752,9 +752,9 @@ def render_overview(path_to_overview_data):
         under_repr_classes = []
         over_repr_classes = []
         for cl in overview_data["classes"]:
-            if overview_data["classes"][cl]["prop"] < 5:
+            if overview_data["classes"][cl]["objs_prop"] < 5:
                 under_repr_classes.append(overview_data["classes"][cl]["name"])
-            if overview_data["classes"][cl]["prop"] > 80:
+            if overview_data["classes"][cl]["objs_prop"] > 80:
                 over_repr_classes.append(overview_data["classes"][cl]["name"])
         warnings_dict["class_distribution"]["under_represented_classes"] = under_repr_classes
         warnings_dict["class_distribution"]["over_represented_classes"] = over_repr_classes
@@ -1275,30 +1275,6 @@ def render_overview(path_to_overview_data):
                             "text-transform" : "none"
                         }
                     ),
-                    html.Th("Min. bbox height",
-                        style = {
-                            "border-top-right-radius" : "0px",
-                            "border-top-left-radius" : "0px",
-                            "background" : "lightsalmon",
-                            "font-size" : "medium",
-                            "font-weight" : "900",
-                            "padding" : "1%",
-                            "text-align" : "right",
-                            "text-transform" : "none"
-                        }
-                    ),
-                    html.Th("Max. bbox height",
-                        style = {
-                            "border-top-right-radius" : "0px",
-                            "border-top-left-radius" : "0px",
-                            "background" : "lightsalmon",
-                            "font-size" : "medium",
-                            "font-weight" : "900",
-                            "padding" : "1%",
-                            "text-align" : "right",
-                            "text-transform" : "none"
-                        }
-                    ),
                     html.Th("Min. bbox width",
                         style = {
                             "border-top-right-radius" : "0px",
@@ -1312,6 +1288,30 @@ def render_overview(path_to_overview_data):
                         }
                     ),
                     html.Th("Max. bbox width",
+                        style = {
+                            "border-top-left-radius" : "0px",
+                            "border-top-right-radius" : "0px",
+                            "background" : "lightsalmon",
+                            "font-size" : "medium",
+                            "font-weight" : "900",
+                            "padding" : "1%",
+                            "text-align" : "right",
+                            "text-transform" : "none"
+                        }
+                    ),
+                    html.Th("Min. bbox height",
+                        style = {
+                            "border-top-right-radius" : "0px",
+                            "border-top-left-radius" : "0px",
+                            "background" : "lightsalmon",
+                            "font-size" : "medium",
+                            "font-weight" : "900",
+                            "padding" : "1%",
+                            "text-align" : "right",
+                            "text-transform" : "none"
+                        }
+                    ),
+                    html.Th("Max. bbox height",
                         style = {
                             "border-top-left-radius" : "0px",
                             "background" : "lightsalmon",
@@ -1335,18 +1335,18 @@ def render_overview(path_to_overview_data):
         class_id = cl
         class_name = classes[cl]["name"]
         class_no_objects = int(classes[cl]["no_objects"])
-        class_prop_objects = (class_no_objects*100) / no_objects
+        class_prop_objects = classes[cl]["objs_prop"]
         class_objects = str(class_no_objects) + " ({:.2f}%)".format(class_prop_objects)
         class_no_images = len(classes[cl]["images"])
-        class_prop_images = (class_no_images*100) / no_images
+        class_prop_images = classes[cl]["imgs_prop"]
         class_images = str(class_no_images) + " ({:.2f}%)".format(class_prop_images)
         class_no_unique_images = len(classes[cl]["unique_images"])
-        class_prop_unique_images = (class_no_unique_images*100) / class_no_images
+        class_prop_unique_images = classes[cl]["unique_imgs_prop"]
         class_unique_images = str(class_no_unique_images) + " ({:.2f}%)".format(class_prop_unique_images)
-        class_min_bbox_height = 0
-        class_max_bbox_height = 0
-        class_min_bbox_width = 0
-        class_max_bbox_width = 0 
+        class_min_bbox_width = classes[cl]["min_bbox_width"]
+        class_max_bbox_width = classes[cl]["max_bbox_width"]
+        class_min_bbox_height = classes[cl]["min_bbox_height"]
+        class_max_bbox_height = classes[cl]["max_bbox_height"]
 
         cl_row = html.Tr(
             [
@@ -1380,18 +1380,6 @@ def render_overview(path_to_overview_data):
                         "text-align" : "right"
                     }
                 ),
-                html.Td(class_min_bbox_height,
-                    style = {
-                        "padding" : "1%",
-                        "text-align" : "right"
-                    }
-                ),
-                html.Td(class_max_bbox_height,
-                    style = {
-                        "padding" : "1%",
-                        "text-align" : "right"
-                    }
-                ),
                 html.Td(class_min_bbox_width,
                     style = {
                         "padding" : "1%",
@@ -1404,6 +1392,18 @@ def render_overview(path_to_overview_data):
                         "text-align" : "right"
                     }
                 ),
+                html.Td(class_min_bbox_height,
+                    style = {
+                        "padding" : "1%",
+                        "text-align" : "right"
+                    }
+                ),
+                html.Td(class_max_bbox_height,
+                    style = {
+                        "padding" : "1%",
+                        "text-align" : "right"
+                    }
+                )
             ]
         )
         classes_table_rows.append(cl_row)

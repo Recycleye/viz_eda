@@ -40,6 +40,13 @@ def compute_overview_data(path_to_images, path_to_annotations):
         classes[cat["id"]] = {}
         classes[cat["id"]]["name"] = cat["name"]
         classes[cat["id"]]["no_objects"] = 0
+        classes[cat["id"]]["min_bbox_height"] = -1
+        classes[cat["id"]]["max_bbox_height"] = -1
+        classes[cat["id"]]["min_bbox_width"] = -1
+        classes[cat["id"]]["max_bbox_width"] = -1
+        classes[cat["id"]]["objs_prop"] = 0
+        classes[cat["id"]]["imgs_prop"] = 0
+        classes[cat["id"]]["unique_imgs_prop"] = 0
         classes[cat["id"]]["images"] = []
         classes[cat["id"]]["unique_images"] = []
 
@@ -52,11 +59,33 @@ def compute_overview_data(path_to_images, path_to_annotations):
         classes_in_annotations.add(ann["category_id"])
         classes[ann["category_id"]]["no_objects"] += 1
         classes[ann["category_id"]]["images"].append(ann["image_id"])
+
+        if classes[ann["category_id"]]["min_bbox_width"] < 0:
+            classes[ann["category_id"]]["min_bbox_width"] = ann["bbox"][2]
+        if ann["bbox"][2] < classes[ann["category_id"]]["min_bbox_width"]:
+            classes[ann["category_id"]]["min_bbox_width"] = ann["bbox"][2]
+
+        if classes[ann["category_id"]]["max_bbox_width"] < 0:
+            classes[ann["category_id"]]["max_bbox_width"] = ann["bbox"][2]
+        if ann["bbox"][2] > classes[ann["category_id"]]["max_bbox_width"]:
+            classes[ann["category_id"]]["max_bbox_width"] = ann["bbox"][2]
+
+        if classes[ann["category_id"]]["min_bbox_height"] < 0:
+            classes[ann["category_id"]]["min_bbox_height"] = ann["bbox"][3]
+        if ann["bbox"][3] < classes[ann["category_id"]]["min_bbox_height"]:
+            classes[ann["category_id"]]["min_bbox_height"] = ann["bbox"][3]
+
+        if classes[ann["category_id"]]["max_bbox_height"] < 0:
+            classes[ann["category_id"]]["max_bbox_height"] = ann["bbox"][3]
+        if ann["bbox"][3] > classes[ann["category_id"]]["max_bbox_height"]:
+            classes[ann["category_id"]]["max_bbox_height"] = ann["bbox"][3]
+
         if ann["image_id"] not in images:
             missing_images.append(ann["image_id"])
         else:
             images[ann["image_id"]]["objects"].append([ann])
             images[ann["image_id"]]["classes"].append(ann["category_id"])
+
     object_lists_lenghts = [len(images[image_id]["objects"]) \
         for image_id in images]
     min_objects_per_image = min(object_lists_lenghts)
@@ -78,8 +107,11 @@ def compute_overview_data(path_to_images, path_to_annotations):
 
     for cl in classes:
         classes[cl]["images"] = list(set(classes[cl]["images"]))
-        classes[cl]["prop"] = classes[cl]["no_objects"]*100/no_objects
-        if classes[cl]["prop"] < 5 or classes[cl]["prop"] > 80:
+        classes[cl]["unique_images"] = list(set(classes[cl]["unique_images"]))
+        classes[cl]["objs_prop"] = classes[cl]["no_objects"]*100/no_objects
+        classes[cl]["imgs_prop"] = len(classes[cl]["images"])*100/no_images
+        classes[cl]["unique_imgs_prop"] = len(classes[cl]["unique_images"])*100/len(classes[cl]["images"])
+        if classes[cl]["objs_prop"] < 5 or classes[cl]["objs_prop"] > 80:
             uniform_distribution = 0
     
     class_ids = set(classes.keys())
