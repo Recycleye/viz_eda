@@ -55,12 +55,6 @@ highlighted in colour. Note that these objects were flagged by the model.
 3. Click "Export" to download an Excel file containing the list of manually flagged images, along with their respective
 categories.
 
-![](assets/anomalies.png)
-
-banana anomaly             |  apple anomaly          |  orange anomaly
-:-------------------------:|:-------------------------:|:-------------------------:
-![](assets/banana.png)  |  ![](assets/apple.png) | ![](assets/orange.png)
-
 ## Built With
 ### UI Framework
 * [Dash](https://plotly.com/dash/) -A framework for building ML and data science apps.
