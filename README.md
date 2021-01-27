@@ -9,11 +9,13 @@ vizEDA is an exploratory data analysis tool that helps to visualize and improve 
 
 #### File structure
 The image directory should look as follows:
+```markdown
 image_dir
 ├── image1
 ├── image2
 │...
 ├── imageN
+```
 
 ### Existing analysis
 1. Upload your JSON analysis file downloaded from a previous session
