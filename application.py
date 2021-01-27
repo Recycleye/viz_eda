@@ -1,800 +1,530 @@
-import base64
-import os
-import shutil
-from io import BytesIO
-from urllib.parse import quote as urlquote
-
+import base64, json, os
 import dash
+import random
+import json
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
-import dash_html_components as html
-import dash_table
-import matplotlib.pyplot as plt
-import pandas as pd
+import dash_html_components as html 
 import plotly.express as px
-import plotly.graph_objects as go
-from coco_assistant import COCO_Assistant
-from dash.dependencies import ALL, Input, Output, State
-from flask import send_file
-from pandas_profiling import ProfileReport
-from skimage import io
-from tqdm import tqdm
+import pandas as pd
+import time
 
-from app.analysis import analyze_dataset, coco, get_objs_per_img, get_proportion
-from app.blob import download_blobs, get_blob_datasets, get_blobs
+from dash.dependencies import Input, Output, State
+from flask import send_from_directory
+from app.mainMenu import *
+from app.dashboard import dashboard_contents
+from app.warnings import warnings_contents
+from app.stats import stats_contents
+from app.classes import classes_contents, generate_class_report
+from app.analysis import analyze_dataset, parse_annotations, parse_analysis
 
-# CSS stylesheet for app
-external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
-# main dash app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
+# App configuration
+app = dash.Dash(__name__)
 app.config["suppress_callback_exceptions"] = True
 application = app.server
-# port to run app
 port = 80
-# flag for batch analysis
-batch_analysis = False
-# main dataframe containing data from analysis.py
-analysis_df = pd.DataFrame()
-# dataframe holding manually flagged images w/ anomalies
-anomaly_table = pd.DataFrame(columns=["Category", "Image ID"])
-# path to image data
-datadir = ""
-# path to annotation file
-annotation_file = ""
-# variable holding loaded coco data
-coco_data = None
-# holds raw html from pandas-profiling output
-profile = ""
-# currently selected category on object tab
-obj_cat = ""
-# currently selected category on area tab
-area_cat = ""
-# general html for exception handling
-exception_html = html.Div(
-    children="Please load a valid COCO-style annotation file and "
-    "define a valid folder.",
-    style={"margin-left": "50px", "margin-top": "50px"},
-)
+output_dir = os.path.join(os.getcwd(), "output")
+images_path = ""
+anns_path = ""
+analysis_path = ""
 
+# App elements
 
-def get_datasets(data_dir):
-    subfolders = [f.path for f in os.scandir(data_dir) if f.is_dir()]
-    dataset = []
-    for folder in subfolders:
-        anns, imgs = [f.path for f in os.scandir(folder) if f.is_dir()]
-        for file in os.listdir(anns):
-            if file.endswith(".json") and "instances" in file:
-                file = os.path.join(anns, file)
-                dataset.append((file, imgs))
-    return dataset
-
-
-def merge_datasets(dataset):
-    # Specify image and annotation directories
-    ann_dir = "./temp/annotations"
-    img_dir = "./temp/images"
-    os.mkdir("./temp")
-    os.mkdir(img_dir)
-    os.mkdir(ann_dir)
-
-    for idx, (anns, imgs) in enumerate(dataset):
-        print(anns)
-        file = str(idx) + ".json"
-        anns_loc = os.path.join(ann_dir, file)
-        shutil.copy(anns, anns_loc)
-
-        print(imgs)
-        imgs_loc = os.path.join(img_dir, str(idx))
-        shutil.copytree(imgs, imgs_loc)
-
-    # Create COCO_Assistant object and merge
-    # TODO: find a fix bug in merge
-    cas = COCO_Assistant(img_dir, ann_dir)
-    cas.merge(merge_images=True)
-
-
-def parse_contents(contents):
-    global analysis_df, annotation_file, coco_data, profile
-    content_type, content_string = contents.split(",", 1)
-    if content_type == "data:application/json;base64":
-        decoded = base64.b64decode(content_string).decode("UTF-8")
-        with open("./output/output.json", "w") as file:
-            file.write(decoded)
-        annotation_file = "./output/output.json"
-        coco_data = coco.COCO(annotation_file)
-    elif content_type == "data:application/octet-stream;base64":
-        decoded = base64.b64decode(content_string)
-        try:
-            analysis_df = pd.read_feather(BytesIO(decoded))
-            print("Loaded analysis file!")
-            profile = ProfileReport(analysis_df, title="Dataset").to_html()
-        except Exception as e:
-            print(e)
-            return exception_html
-
-
-def fig_to_uri(in_fig, **save_args):
-    # Save a figure as a URI
-    out_img = BytesIO()
-    in_fig.savefig(out_img, format="png", **save_args)
-    out_img.seek(0)  # rewind file
-    b64encoded = base64.b64encode(out_img.read())
-    encoded = b64encoded.decode("ascii").replace("\n", "")
-    return "data:image/png;base64,{}".format(encoded)
-
-
-def get_html_imgs(img_ids, cat, outlying_anns=None):
-    # TODO: speed-up image loading and display
-    global datadir
-    html_imgs = []
-    cats = coco_data.getCatIds(catNms=[cat])
-    print("Loading images...")
-    for img_id in tqdm(set(img_ids)):
-        im_ann = coco_data.loadImgs(ids=int(img_id))[0]
-        image_filename = os.path.join(datadir, im_ann["file_name"])
-        i = io.imread(image_filename) / 255.0
-        plt.imshow(i)
-        plt.axis("off")
-        if outlying_anns is None:
-            ann_ids = coco_data.getAnnIds(imgIds=img_id, catIds=cats)
-        else:
-            ann_ids = set(coco_data.getAnnIds(imgIds=img_id, catIds=cats))
-            ann_ids = list(ann_ids.intersection(set(outlying_anns)))
-        anns = coco_data.loadAnns(ann_ids)
-        coco_data.showAnns(anns)
-        decoded_image = fig_to_uri(plt)
-        plt.close()
-        html_imgs.append(
-            html.Img(
-                id={"type": "output_image", "index": str(img_id)},
-                src=decoded_image,
-                **{"data-category": cat}
-            )
-        )
-    return html_imgs
-
-
-def set_blob_data(dataset):
-    global annotation_file, datadir, coco_data
-    blob_list = get_blobs(dataset)
-    blob_names = download_blobs(blob_list)
-    annotation_file = [i for i in blob_names if ".json" in i][0]
-    imgs = [i for i in blob_names if ".jpg" in i or ".png" in i]
-    datadir = os.path.dirname(imgs[0])
-    annotation_file = os.path.join("../blob_data", annotation_file)
-    datadir = os.path.join("../blob_data", datadir)
-    coco_data = coco.COCO(annotation_file)
-
-
-def render_tab0():
-    try:
-        if profile == "":
-            return exception_html
-        return html.Div(
-            children=[
-                html.Iframe(srcDoc=profile, style={"width": "100%", "height": "1500px"})
-            ],
-            style={
-                "display": "flex",
-                "align-items": "center",
-                "justify-content": "center",
-                "margin-left": "5%",
-                "margin-right": "5%",
-            },
-        )
-    except Exception as e:
-        print(e)
-        return exception_html
-
-
-def render_tab1():
-    fig = px.bar(
-        analysis_df,
-        x="category",
-        y="number of objects",
-        title="Number of Objects per Category",
-    )
-    val = "number of objects"
-    fig2 = px.pie(analysis_df, values=val, names="category")
-    return html.Div(
-        [
-            dcc.Graph(id="cat_objs_bar", figure=fig),
-            dcc.Graph(id="cat_objs_pie", figure=fig2),
-        ],
-        style={"margin-left": "10%", "margin-right": "10%"},
-    )
-
-
-def render_tab2():
-    fig = px.bar(
-        analysis_df,
-        x="category",
-        y="number of images",
-        title="Number of Images per Category",
-    )
-    val = "number of images"
-    fig2 = px.pie(analysis_df, values=val, names="category")
-    return html.Div(
-        [
-            dcc.Graph(id="cat_imgs_bar", figure=fig),
-            dcc.Graph(id="cat_imgs_pie", figure=fig2),
-        ],
-        style={"margin-left": "10%", "margin-right": "10%"},
-    )
-
-
-def render_tab3():
-    fig = px.bar(
-        analysis_df,
-        x="category",
-        y="avg number of objects per img",
-        title="Avg Number Of Objects per Image",
-    )
-    fig.update_layout(clickmode="event+select")
-    text = "Click on bin to see probability distribution"
-    return html.Div(
-        [
-            dcc.Graph(id="objs_per_img", figure=fig),
-            html.Div(children=text),
-            html.Div(id="obj_hist_out"),
-            dbc.Spinner(html.Div(id="obj_imgs"), size="lg"),
-        ],
-        style={"margin-left": "10%", "margin-right": "10%"},
-    )
-
-
-def render_tab4():
-    fig = px.bar(
-        analysis_df,
-        x="category",
-        y="avg percentage of img",
-        title="Avg Proportion of Image",
-    )
-    text = "Click on bin to see probability distribution"
-    return html.Div(
-        [
-            dcc.Graph(id="cat_areas", figure=fig),
-            html.Div(children=text),
-            html.Div(id="area_hist_out"),
-            dbc.Spinner(html.Div(id="area_imgs"), size="lg"),
-        ],
-        style={"margin-left": "10%", "margin-right": "10%"},
-    )
-
-
-def render_tab5():
-    cat_ids = coco_data.getCatIds()
-    cat_dict = coco_data.loadCats(cat_ids)
-    cat_nms = [d["name"] for d in cat_dict]
-    options = [{"label": i, "value": i} for i in cat_nms]
-    s = {"margin-top": "25px", "margin-left": "25px"}
-    return html.Div(
-        [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        [
-                            html.H3(children="Select a category", style=s),
-                            dcc.Dropdown(
-                                id="cat_selection",
-                                options=options,
-                                value=cat_nms[0],
-                                style={
-                                    "margin-top": "25px",
-                                    "margin-left": "25px",
-                                    "margin-right": "50%",
-                                },
-                            ),
-                            dbc.Spinner(html.Div(id="anomaly_imgs"), size="lg"),
-                        ],
-                        width=6,
-                    ),
-                    dbc.Col(
-                        [
-                            html.H3(children="Flagged anomalies", style=s),
-                            html.Div(id="anomaly_table"),
-                        ],
-                        width=6,
-                    ),
-                ]
-            )
-        ],
-        style={"margin-left": "10%", "margin-right": "10%"},
-    )
-
-
-@app.callback(
-    Output("output-ann-data-upload", "children"),
-    [Input("upload-annotation-data", "contents")],
-)
-def upload_ann_data(contents):
-    if contents is not None:
-        children = parse_contents(contents)
-        return children
-
-
-@app.callback(
-    Output("data_dir_textbox", "children"),
-    [Input("input_data_dir", "value")],
-    [State("input_data_dir", "value")],
-)
-def check_datapath(prev, curr):
-    placeholder = "Path to images (i.e. C:/Users/me/project/data/val2017)"
-    valid = (
-        dbc.Input(
-            id="input_data_dir",
-            type="text",
-            placeholder=placeholder,
-            valid=True,
-            className="mb-3",
-            value=prev,
-        ),
-    )
-    invalid = (
-        dbc.Input(
-            id="input_data_dir",
-            type="text",
-            placeholder=placeholder,
-            invalid=True,
-            className="mb-3",
-            value=prev,
-        ),
-    )
-    if curr is None:
-        curr = ""
-    if os.path.isdir(curr):
-        global datadir
-        datadir = curr
-        return html.Div(children=valid)
-    else:
-        return html.Div(children=invalid)
-
-
-@app.callback(
-    Output("checkbox_output", "children"), [Input("batch_checkbox", "checked")],
-)
-def on_form_change(checkbox_checked):
-    if checkbox_checked:
-        global batch_analysis
-        batch_analysis = True
-
-
-@app.callback(
-    Output("output-analysis-data-upload", "children"),
-    [Input("upload-analysis-data", "contents")],
-)
-def upload_analysis_data(contents):
-    if contents is not None:
-        children = parse_contents(contents)
-        return children
-
-
-@app.callback(
-    Output("output-analysis-data-upload-online", "children"),
-    [Input("upload-analysis-data-online", "contents")],
-    [State("dataset_selection", "value")],
-)
-def upload_analysis_data_online(contents, dataset):
-    global annotation_file, coco_data
-    if contents is not None:
-        set_blob_data(dataset)
-        children = parse_contents(contents)
-        return children
-
-
-@app.callback(
-    Output("output-analysis-btn", "children"), [Input("analyze_button", "n_clicks")],
-)
-def analyze_button(n_clicks):
-    global datadir, annotation_file, analysis_df, profile, batch_analysis
-    if n_clicks is not None:
-        if batch_analysis:
-            datasets = get_datasets(datadir)
-            merge_datasets(datasets)
-            annotation_file = "./temp/results/merged/annotations/merged.json"
-            datadir = "./temp/results/merged/images"
-        try:
-            analysis_df, analysis_output = analyze_dataset(annotation_file, datadir)
-            print(annotation_file)
-            profile = ProfileReport(analysis_df, title="Dataset").to_html()
-        except Exception as e:
-            print(e)
-            return exception_html
-
-
-@app.callback(
-    Output("output-analysis-btn-online", "children"),
-    [Input("analyze_button_online", "n_clicks")],
-    [State("dataset_selection", "value")],
-)
-def analyze_button_online(n_clicks, dataset):
-    global datadir, annotation_file, analysis_df, profile, batch_analysis, coco_data
-    if n_clicks is not None:
-        # if batch_analysis:
-        #     datasets = get_blob_datasets(datadir)
-        #     merge_datasets(datasets)
-        #     annotation_file = "./temp/results/merged/annotations/merged.json"
-        #     datadir = "./temp/results/merged/images"
-        set_blob_data(dataset)
-        try:
-            analysis_df, analysis_output = analyze_dataset(annotation_file, datadir)
-            download_analysis(analysis_output)
-            profile = ProfileReport(analysis_df, title="Dataset").to_html()
-            location = "/download_analysis/{}".format(urlquote(analysis_output))
-            return (
-                html.Div(
-                    [
-                        html.Hr(),
-                        html.A(
-                            dbc.Button(
-                                "Download Analysis",
-                                color="primary",
-                                block=True,
-                                outline=True,
-                            ),
-                            href=location,
-                        ),
-                    ]
-                ),
-            )
-        except Exception as e:
-            print(e)
-            return exception_html
-
-
-@app.callback(
-    Output("tabs-figures", "children"), [Input("tabs", "value")],
-)
-def render_tab(tab):
-    try:
-        if tab == "tab-0":
-            return render_tab0()
-        elif tab == "tab-1":
-            return render_tab1()
-        elif tab == "tab-2":
-            return render_tab2()
-        elif tab == "tab-3":
-            return render_tab3()
-        elif tab == "tab-4":
-            return render_tab4()
-        elif tab == "tab-5":
-            return render_tab5()
-    except Exception as e:
-        print(e)
-        return exception_html
-
-
-@app.callback(
-    Output("obj_hist_out", "children"), [Input("objs_per_img", "clickData")],
-)
-def display_obj_hist(click_data):
-    if click_data is not None:
-        cat = click_data["points"][0]["x"]
-        global obj_cat
-        obj_cat = cat
-        cat_ids = coco_data.getCatIds(catNms=cat)
-        img_ids = coco_data.getImgIds(catIds=cat_ids)
-        title = "Number of " + cat + "s in an image w/ " + cat + "s"
-        _, data = get_objs_per_img(cat_ids, img_ids, coco_data)
-        x = data["number of objs"]
-        xbins = dict(size=1)
-        norm = "probability"
-        hist = go.Histogram(x=x, xbins=xbins, histnorm=norm)
-        fig = go.Figure(data=[hist])
-        fig.update_layout(
-            clickmode="event+select", yaxis_title="probability", title=title
-        )
-        text = "Click on bin to see images (may take up to 30 seconds)"
-        return html.Div(
-            [dcc.Graph(id="objs_hist", figure=fig), html.Div(children=text)]
-        )
-
-
-@app.callback(
-    Output("area_hist_out", "children"), [Input("cat_areas", "clickData")],
-)
-def display_area_hist(click_data):
-    if click_data is not None:
-        cat = click_data["points"][0]["x"]
-        global area_cat
-        area_cat = cat
-        cat_ids = coco_data.getCatIds(catNms=cat)
-        img_ids = coco_data.getImgIds(catIds=cat_ids)
-        title = "Percentage area of a(n) " + cat + " in an image"
-        _, data = get_proportion(cat_ids, img_ids, coco_data)
-        fig = go.Figure(
-            data=[
-                go.Histogram(
-                    x=data["proportion of img"],
-                    xbins=dict(size=0.01),
-                    histnorm="probability",
-                )
-            ]
-        )
-        fig.update_layout(
-            clickmode="event+select", yaxis_title="probability", title=title
-        )
-        text = "Click on bin to see images (may take up to 30 seconds)"
-        return html.Div(
-            [dcc.Graph(id="area_hist", figure=fig), html.Div(children=text)]
-        )
-
-
-@app.callback(
-    Output("obj_imgs", "children"), [Input("objs_hist", "clickData")],
-)
-def display_obj_imgs(click_data):
-    if click_data is not None:
-        global obj_cat
-        cat_ids = coco_data.getCatIds(catNms=obj_cat)
-        img_ids = coco_data.getImgIds(catIds=cat_ids)
-        _, data = get_objs_per_img(cat_ids, img_ids, coco_data)
-        num_objs = click_data["points"][0]["x"]
-        img_ids = data.loc[data["number of objs"] == num_objs]["imgID"]
-        html_imgs = get_html_imgs(img_ids, obj_cat)
-        return html.Div(html_imgs)
-
-
-@app.callback(
-    Output("area_imgs", "children"), [Input("area_hist", "clickData")],
-)
-def display_area_imgs(click_data):
-    if click_data is not None:
-        global area_cat
-        cat_ids = coco_data.getCatIds(catNms=area_cat)
-        img_ids = coco_data.getImgIds(catIds=cat_ids)
-        _, data = get_proportion(cat_ids, img_ids, coco_data)
-        data_df = pd.DataFrame(data)
-        point_nums = click_data["points"][0]["pointNumbers"]
-        img_ids = data_df[data_df.index.isin(point_nums)]["imgID"]
-        html_imgs = get_html_imgs(img_ids, area_cat)
-        return html.Div(html_imgs)
-
-
-@app.callback(
-    Output("anomaly_imgs", "children"), [Input("cat_selection", "value")],
-)
-def display_anomalies(value):
-    global analysis_df
-    try:
-        img_ids = (
-            analysis_df["images w/ abnormal objects"][
-                analysis_df["category"] == value
-            ].tolist()
-        )[0]
-        anns = analysis_df["abnormal objects"][analysis_df["category"] == value]
-        ann_ids = (anns.tolist())[0]
-        html_imgs = get_html_imgs(img_ids, value, outlying_anns=ann_ids)
-        return html.Div(
-            children=html_imgs,
-            style={
-                "margin-left": "5%",
-                "margin-right": "5%",
-                "margin-top": "25px",
-                "overflow": "scroll",
-                "border": "2px black solid",
-                "box-sizing": "border-box",
-                "width": "600px",
-                "height": "600px",
-            },
-        )
-    except Exception as e:
-        print(e)
-        return exception_html
-
-
-@app.callback(
-    Output("anomaly_table", "children"),
-    [Input({"type": "output_image", "index": ALL}, "n_clicks")],
+navbar = html.Div(
     [
-        State({"type": "output_image", "index": ALL}, "data-category"),
-        State({"type": "output_image", "index": ALL}, "id"),
+        dbc.Row(
+            [
+                dbc.Col(
+                    html.A(html.I(className="hamburger align-self-center"),
+                    className="sidebar-toggle d-flex", id="toggle")
+                )                    
+            ],
+            align = "center",
+            no_gutters = True,
+            style = {
+                "width" : "100%"
+            }
+        )
     ],
+    className = "navbar navbar-expand navbar-light navbar-bg"
 )
-def display_anomaly_table(n_clicks, cat, id):
-    global anomaly_table
-    for i, val in enumerate(n_clicks):
-        file = id[i]["index"]
-        # Add filename to anomaly_table if it does not already contain the file
-        if (val is not None) and (
-            not anomaly_table["Image ID"].str.contains(file).any()
-        ):
-            new_row = {"Category": cat[i], "Image ID": file}
-            anomaly_table = anomaly_table.append(new_row, ignore_index=True)
-    return html.Div(
-        dash_table.DataTable(
-            id="anomaly_datatable",
-            columns=[{"name": i, "id": i} for i in anomaly_table.columns],
-            data=anomaly_table.to_dict("records"),
-            row_deletable=True,
-            export_format="xlsx",
-            export_headers="display",
+
+sidebar = html.Div([
+        html.A(html.Span("vizEDA",className="align-middle"),
+        className="sidebar-brand",href="http://0.0.0.0"),
+        html.Div([
+            html.Div([
+                dbc.Button([
+                    html.Img(src="assets/icons/info.svg",
+                    style={"width":"15px","padding-bottom":"1px",
+                    "margin-right":"5px"}),
+                    "About"
+                    ],
+                    color="primary", 
+                    className="mr-1",
+                    id="sidebar-btn-1",
+                    n_clicks_timestamp='0',
+                    style={"margin-left":"5%","margin-top":"0",
+                    "margin-bottom":"0",
+                    "background":"transparent","border-color":"transparent"})],
+                id = "sidebar-btn-container-1"
+            ),
+            html.Div([
+                dbc.Button([
+                    html.Img(src="assets/icons/plus.svg",
+                    style={"width":"15px","padding-bottom":"1px",
+                    "margin-right":"5px"}),
+                    "New analysis"
+                    ],
+                    color="primary", 
+                    className="mr-1",
+                    id="sidebar-btn-2",
+                    n_clicks_timestamp='0',
+                    style={"margin-left":"5%","margin-top":"0",
+                    "margin-bottom":"0","background":"transparent",
+                    "border-color":"transparent"})],
+                id = "sidebar-btn-container-2"
+            ),
+            html.Div([
+                dbc.Button([
+                    html.Img(src="assets/icons/upload.svg",
+                    style={"width":"15px","padding-bottom":"1px",
+                    "margin-right":"5px"}),
+                    "Upload analysis"
+                    ],
+                    color="primary", 
+                    className="mr-1",
+                    id="sidebar-btn-3",
+                    n_clicks_timestamp='0',
+                    style={"margin-left":"5%","margin-top":"0",
+                    "margin-bottom":"0","background":"transparent",
+                    "border-color":"transparent"})],
+                id = "sidebar-btn-container-3"),
+            ],
+            style={"margin-top":"10%"}
         ),
-        style={"margin-left": "5%", "margin-right": "5%"},
+        html.Div([
+            html.Div([
+                dbc.Button([
+                    html.Img(src="assets/icons/sliders.svg",
+                    style={"width":"15px","padding-bottom":"1px",
+                    "margin-right":"5px"}),
+                    "Dashboard"
+                    ],
+                    color="primary",
+                    className="mr-1",
+                    id="sidebar-btn-4",
+                    n_clicks_timestamp='0',
+                    disabled= True,
+                    style={"margin-left":"5%","margin-top":"0",
+                    "margin-bottom":"0","background":"transparent",
+                    "border-color":"transparent"})],
+                id = "sidebar-btn-container-4"),
+            html.Div([
+                dbc.Button([
+                    html.Img(src="assets/icons/alert-triangle.svg",
+                    style={"width":"15px","padding-bottom":"1px",
+                    "margin-right":"5px"}),
+                    "Warnings"
+                    ],
+                    color="primary",
+                    className="mr-1",
+                    id="sidebar-btn-5",
+                    n_clicks_timestamp='0',
+                    disabled= True,
+                    style={"margin-left":"5%","margin-top":"0",
+                    "margin-bottom":"0","background":"transparent",
+                    "border-color":"transparent"})],
+                id = "sidebar-btn-container-5"),
+            html.Div([
+                dbc.Button([
+                    html.Img(src="assets/icons/layout.svg",
+                    style={"width":"15px","padding-bottom":"1px",
+                    "margin-right":"5px"}),
+                    "Classes"
+                    ],
+                    color="primary",
+                    className="mr-1",
+                    id="sidebar-btn-6",
+                    n_clicks_timestamp='0',
+                    disabled=True,
+                    style={"margin-left":"5%","margin-top":"0",
+                    "margin-bottom":"0","background":"transparent",
+                    "border-color":"transparent"})],
+                id = "sidebar-btn-container-6"),
+            html.Div([
+                dbc.Button([
+                    html.Img(src="assets/icons/bar-chart-2.svg",
+                    style={"width":"15px","padding-bottom":"1px",
+                    "margin-right":"5px"}),
+                    "Stats"
+                    ],
+                    color="primary", 
+                    className="mr-1",
+                    id="sidebar-btn-7",
+                    n_clicks_timestamp='0',
+                    disabled=True,
+                    style={"margin-left":"5%","margin-top":"0",
+                    "margin-bottom":"0","background":"transparent",
+                    "border-color":"transparent"})],
+                id = "sidebar-btn-container-7"),
+            html.Div([
+                dbc.Button([
+                    html.Img(src="assets/icons/crosshair.svg",
+                    style={"width":"15px","padding-bottom":"1px",
+                    "margin-right":"5px"}),
+                    "Anomalies"
+                    ],
+                    color="primary", 
+                    className="mr-1",
+                    id="sidebar-btn-8",
+                    n_clicks_timestamp='0',
+                    disabled=True,
+                    style={"margin-left":"5%","margin-top":"0",
+                    "margin-bottom":"0","background":"transparent",
+                    "border-color":"transparent"})],
+                id = "sidebar-btn-container-8"),
+            ],
+            style={"margin-top":"10%"}
+        )
+    ],
+    className="sidebar collapse",
+    id="sidebar"
+)
+
+header = html.Div(
+    [
+        sidebar,
+        html.Div([
+            navbar, 
+            html.Div(id="main-content", style={"padding":"2.5rem 2.5rem 1rem"})
+        ],
+        className="main")
+    ],
+    className="wrapper"
+)
+
+def serve_layout():
+    return html.Div(
+        [
+            header
+        ]
     )
+
+app.layout = serve_layout
+
+# App callbacks
+
+@app.callback(
+    Output("sidebar","className"),
+    Input("toggle","n_clicks")
+)
+def do_show_hide(n_clicks):
+    """
+    Shows/hides the sidebar on toggle click
+
+    :param n_clicks: num clicks on toggle button
+    :return: className of sidebar defining collapsed state
+    """
+    if n_clicks is None:
+        return "sidebar"
+    if n_clicks % 2:
+            return "sidebar collapse"
+    else:
+         return "sidebar"
+
+@app.callback(
+    Output("main-content","children"),
+    [Output(f"sidebar-btn-container-{i}", "style") for i in range(1, 9)],
+    [Input(f"sidebar-btn-{i}", "n_clicks_timestamp") for i in range(1, 9)],
+)
+def change_contents(about,new_analysis,upload_analysis,dashboard,warnings,\
+    classes,stats,anomalies):
+    """
+    Controls the logic of the menus
+
+    :param about: timestamp of last click on about menu btn
+    :param new_analysis: timestamp of last click on new analysis menu btn
+    :param upload_analysis: timestamp of last click on upload analysis menu btn
+    :param dashbard: timestamp of last click on dashboard menu btn
+    :param warnings: timestamp of last click on warnings menu btn
+    :param classes: timestamp of last click on classes menu btn
+    :param stats: timestamp of last click on stats menu btn
+    :param anomalies: timestamp of last click on anomalies menu btn
+    :return: conent to be displayed in main content div
+    """
+    global analysis_path
+
+    # Make a list of all click timestamps
+    # Notice: Dash uses 13 digits UNIX time, we want 10 digits only
+    clicks = [0, 
+        int(str(about)[:10]), 
+        int(str(new_analysis)[:10]), 
+        int(str(upload_analysis)[:10]),
+        int(str(dashboard)[:10]), 
+        int(str(warnings)[:10]), 
+        int(str(classes)[:10]), 
+        int(str(stats)[:10]), 
+        int(str(anomalies)[:10])
+    ]
+    # Get index of last click btn
+    last_clicked = clicks.index(max(clicks))
+
+    # Color for sidebar btns
+    color = "linear-gradient(90deg,rgba(59,125,221,.1),rgba(59,125,221,.0875) 50%,transparent)"
+
+    # Define style for selected/non-selected buttons
+    selected = {"background":color, "border-left":"3px solid #3b7ddd"}
+    non_selected = {"background":"transparent","border-color":"transparent"}
+
+    # Set all btns to non-selected
+    style_about = non_selected
+    style_new_analysis = non_selected
+    style_upload_analysis = non_selected
+    style_dashboard = non_selected
+    style_warnings = non_selected
+    style_classes = non_selected
+    style_stats = non_selected
+    style_anomalies = non_selected
+
+    # Set last click btn to selected and display corresponding content
+    if last_clicked == 0:
+        contents = new_analysis_contents()
+        style_new_analysis = selected
+    if last_clicked == 1:
+        contents = about_contents()
+        style_about = selected
+    elif last_clicked == 2:
+        contents = new_analysis_contents()
+        style_new_analysis = selected
+    elif last_clicked == 3:
+        contents = upload_analysis_contents()
+        style_upload_analysis = selected
+    elif last_clicked == 4:
+        contents = dashboard_contents(analysis_path)
+        style_dashboard = selected
+    elif last_clicked == 5:
+        contents = warnings_contents(analysis_path)
+        style_warnings = selected
+    elif last_clicked == 6:
+        contents = classes_contents(analysis_path)
+        style_classes = selected
+    elif last_clicked == 7:
+        contents = stats_contents(analysis_path)
+        style_stats = selected
+    elif last_clicked == 8:
+        contents = html.Div("Anomalies")
+        style_anomalies = selected
+    return contents,style_about,style_new_analysis,style_upload_analysis,\
+        style_dashboard,style_warnings,style_classes,style_stats,style_anomalies
+
+@app.callback(
+    Output("images-upload", "valid"),
+    Input("images-upload", "value")
+)
+def check_images_path(path):
+    """
+    Validates the path upload field by checking 
+    if the path provided by the user exists
+
+    :param path: the image path provided by the user
+    :return: True if path exists, False otherwise
+    """ 
+    global images_path,analysis_path
+    if path is None:
+        path = ""
+    if os.path.isdir(path):
+        images_path = path
+        return True
+    else:
+        # If user did not upload analysis
+        if analysis_path == "":
+            return False
+
+        # Else if user uploaded analysis
+        else:
+            return True
 
 
 @app.callback(
-    Output("anomaly_datatable", "children"),
-    [Input("anomaly_datatable", "data_previous")],
-    [State("anomaly_datatable", "data")],
+    Output("upload-btn", "style"),
+    Input("upload", "contents")
 )
-def update_anomaly_table(prev, curr):
-    if prev is None:
-        dash.exceptions.PreventUpdate()
-    else:
-        removed = list(
-            set([i["Image ID"] for i in prev]) - set([i["Image ID"] for i in curr])
-        )[0]
-        global anomaly_table
-        col = "Image ID"
-        anomaly_table = anomaly_table[anomaly_table[col] != removed]
+def check_upload(contents):
+    """
+    Validates the upload button by checking uploaded file is in JSON format
+    
+    :param contents: the file uploaded by the user
+    :return: color update for upload button
+    """
+    global anns_path,analysis_path
+    style = {"width":"100%","margin-bottom":"1.5rem","font-weight":"700",
+    "background":"#222e3c"}
+    if contents is not None:
+        content_type, decoded_content = contents.split(",", 1)
+        # If user did not upload analysis, 
+        # get the annotations to generate analysis
+        if analysis_path == "":
+            anns_path = parse_annotations(decoded_content)
+        
+        if content_type == "data:application/json;base64":
+            style = {"width":"100%","margin-bottom":"1.5rem",
+            "font-weight":"700","background":"green"}
+        else:
+            style = {"width":"100%","margin-bottom":"1.5rem",
+            "font-weight":"700","background":"red"}
+    return style
 
-
-@app.server.route("/download_analysis/<path:filename>")
-def download_analysis(filename):
-    print(filename)
-    return send_file(filename, attachment_filename=filename, as_attachment=True)
-
-
-style = {"margin-left": "50px", "margin-top": "50px", "font-size": "75px"}
-path = "Path to images (i.e. C:/Users/me/project/data/val2017)"
-tab4_label = "Proportion of object in image"
-
-
-def display_header(local):
-    if local:
-        return html.Div(
-            [
-                dcc.Upload(
-                    id="upload-annotation-data",
-                    children=dbc.Button(
-                        "Upload JSON Annotation File", color="primary", block=True
-                    ),
-                    multiple=False,
-                    style={"margin-left": "10%", "margin-right": "10%"},
-                ),
-                html.Hr(),
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            html.Div(
-                                id="data_dir_textbox",
-                                children=dbc.Input(
-                                    id="input_data_dir",
-                                    type="text",
-                                    placeholder=path,
-                                    className="mb-3",
-                                ),
-                            ),
-                            width=9,
-                        ),
-                        dbc.Col(
-                            html.Div(
-                                dbc.FormGroup(
-                                    [
-                                        dbc.Checkbox(
-                                            id="batch_checkbox",
-                                            className="form-check-input",
-                                        ),
-                                        dbc.Label(
-                                            "batch analysis",
-                                            html_for="batch_checkbox",
-                                            className="form-check-label",
-                                        ),
-                                    ],
-                                    check=True,
-                                ),
-                            ),
-                            width=3,
-                        ),
-                    ],
-                    style={"margin-left": "10%", "margin-right": "10%"},
-                ),
-                html.Hr(),
-            ],
-            html.Hr(),
-            html.Div(
-                dcc.Upload(
-                    id="upload-analysis-data",
-                    children=dbc.Button(
-                        "Load Feather Analysis File",
-                        color="primary",
-                        block=True,
-                        outline=True,
-                    ),
-                    multiple=False,
-                ),
-                style={"margin-left": "10%", "margin-right": "10%"},
-            ),
-        )
-    else:
-        datasets = get_blob_datasets()
-        return html.Div(
-            [
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            dcc.Dropdown(
-                                id="dataset_selection",
-                                options=[{"label": i, "value": i} for i in datasets],
-                                value=datasets[0],
-                            ),
-                            width=6,
-                        ),
-                        dbc.Col(
-                            dbc.Button(
-                                "Analyze",
-                                id="analyze_button_online",
-                                color="primary",
-                                outline=True,
-                                block=True,
-                            ),
-                            width=6,
-                        ),
-                    ]
-                ),
-                html.Div(id="output-analysis-btn-online"),
-                html.Hr(),
-                html.Div(
-                    dcc.Upload(
-                        id="upload-analysis-data-online",
-                        children=dbc.Button(
-                            "Upload Feather Analysis File",
-                            color="primary",
-                            block=True,
-                            outline=True,
-                        ),
-                        multiple=False,
-                    ),
-                ),
-            ],
-            style={"margin-left": "10%", "margin-right": "10%"},
-        )
-
-
-header = display_header(local=False)
-app.layout = html.Div(
-    children=[
-        html.H1(children="Viz EDA", style=style),
-        html.Div(
-            children="Exploratory data analysis for computer vision and "
-            "object recognition.",
-            style={"margin-left": "50px", "margin-bottom": "50px"},
-        ),
-        html.Hr(),
-        header,
-        html.Hr(),
-        html.Div(id="output-ann-data-upload", style={"display": "none"}),
-        html.Div(id="output-analysis-data-upload", style={"display": "none"}),
-        html.Div(id="output-analysis-btn", style={"display": "none"}),
-        html.Div(id="output-analysis-data-upload-online", style={"display": "none"}),
-        html.Div(id="checkbox_output", style={"display": "none"}),
-        dcc.Tabs(
-            id="tabs",
-            value="tab-0",
-            children=[
-                dcc.Tab(label="Overview", value="tab-0"),
-                dcc.Tab(label="Objects per class", value="tab-1"),
-                dcc.Tab(label="Images per class", value="tab-2"),
-                dcc.Tab(label="Objects per image", value="tab-3"),
-                dcc.Tab(label=tab4_label, value="tab-4",),
-                dcc.Tab(label="Anomaly detection", value="tab-5"),
-            ],
-        ),
-        html.Div(id="tabs-figures"),
-        html.Hr(),
-    ]
+@app.callback(
+    Output("analyze-btn", "disabled"),
+    Input("images-upload", "valid"),
+    Input("upload-btn", "style")
 )
+def check_inputs(valid_path, btn_style):
+    """
+    Enables/disables analyze button depending on whether the image path
+    and uploaded file have been validated
+
+    :param valid_path: if the image path is valid
+    :param btn_color: the color of the upload button (green if file is ok)
+    :return: disabled state and color of the analyze button
+    """
+    valid_file = False
+    if btn_style["background"] == "green":
+        valid_file = True
+    if valid_path and valid_file:
+        return False
+    else:
+        return True
+
+@app.callback(
+    Output("analyze-btn", "style"),
+    Input("analyze-btn", "disabled")
+)
+def update_analyze_button(disabled):
+    """
+    Updates the color of the analyze button depending on
+    its disabled status
+
+    :param disabled: if the button is disabled
+    """
+    if not disabled:
+        style = {"width":"100%","text-transform":"uppercase",
+        "font-weight":"700","background":"green","outline":"green"}
+    else:
+        style = {"width":"100%","text-transform":"uppercase",
+        "font-weight":"700"}
+    return style
+
+@app.callback(
+    Output("sidebar-btn-4","n_clicks_timestamp"),
+    [Output(f"sidebar-btn-{i}", "disabled") for i in range(4, 9)],
+    Input("analyze-btn","n_clicks"),
+)
+def enable_buttons(click):
+    """
+    Enables/disables the dashboard, warnings, classes, stats and 
+    anomalies buttons depending on if analyze btn is clicked
+
+    Automatically switches to dashboard if analyze btn is clicked
+
+    :param click: num clicks on analyze btn
+    :return: dashboard click event and disabled status for all btns
+    """
+    global images_path, anns_path, analysis_path
+    if click:
+        # If user inserted images and anns
+        if images_path != "" and anns_path != "":
+            analysis_path = analyze_dataset(images_path, anns_path)
+        # Dashboard click event
+        dashboard_click = int(time.time())
+        return dashboard_click,False,False,False,False,False
+    else:
+        dashboard_click = 0
+        return dashboard_click,True,True,True,True,True
+
+@app.callback(
+    Output("class-warnings-collapse", "is_open"),
+    [Input("class-warnings-collapse-button", "n_clicks")],
+    [State("class-warnings-collapse", "is_open")],
+)
+def toggle_class_warnings_collapse(n, is_open):
+    """
+    Shows/hides class warnings on toggle click
+
+    :param n: num clicks on toggle button
+    :param is_open: open state of class warnings
+    :return: negated open state if click, else open state
+    """
+    if n:
+        return not is_open
+    return is_open
+
+@app.callback(
+    Output("id-warnings-collapse", "is_open"),
+    [Input("id-warnings-collapse-button", "n_clicks")],
+    [State("id-warnings-collapse", "is_open")],
+)
+def toggle_id_warnings_collapse(n, is_open):
+    """
+    Shows/hides id warnings on toggle click
+
+    :param n: num clicks on toggle button
+    :param is_open: open state of id warnings
+    :return: negated open state if click, else open state
+    """
+    if n:
+        return not is_open
+    return is_open
+
+@app.callback(
+    Output("image-warnings-collapse", "is_open"),
+    [Input("image-warnings-collapse-button", "n_clicks")],
+    [State("image-warnings-collapse", "is_open")],
+)
+def toggle_image_warnings_collapse(n, is_open):
+    """
+    Shows/hides image warnings on toggle click
+
+    :param n: num clicks on toggle button
+    :param is_open: open state of image warnings
+    :return: negated open state if click, else open state
+    """
+    if n:
+        return not is_open
+    return is_open
+
+@app.callback(
+    Output("selection-div", "style"),
+    Output("class-report","children"),
+    Output("class-report","style"),
+    Input("class-selection", "value")
+)
+def display_class_report(selection):
+    """
+    Shows/hides class report of class selected by user
+    """
+    global analysis_path
+    if selection is None:
+        style_sel={"padding-top":"25%", "margin":"auto", "width":"20%"}
+        rep_children = None
+        style_rep={"display":"none"}
+    else:
+        style_sel={"width":"20%"}
+        rep_children = generate_class_report(analysis_path,selection)
+        style_rep={"display":"block"}
+    return style_sel,rep_children,style_rep
+
+@app.server.route("/download/<path:filename>")
+def download(filename):
+    """
+    Enables file download
+
+    :param filename: the name of the file to be downloaded
+    :return: the file download
+    """
+    return send_from_directory(output_dir, filename, 
+    attachment_filename = filename, as_attachment = True)
 
 if __name__ == "__main__":
-    # Run on docker
-    application.run(host="0.0.0.0", port=port, debug=True)
-
-    # Run locally
-    # app.run_server(port=port, debug=True)
-
-    # Only do analysis
-    # annotation_file = ""
-    # datadir = ""
-    # analyzeDataset(annotation_file, datadir)
+    application.run(host ="0.0.0.0", port = port, debug = True)

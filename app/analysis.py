@@ -1,316 +1,275 @@
+import json 
 import os
-import random
-import time
+import base64
+import dash_html_components as html
+import dash_bootstrap_components as dbc
 
-import cv2
-import numpy as np
-import pandas as pd
-from pycocotools import coco as coco
-from tqdm import tqdm
+from collections import OrderedDict 
+from urllib.parse import quote as urlquote
 
-from app.anomaly import get_anomalies, get_outliers
-
-
-def get_objs_per_img(cat_ids, img_ids, coco_data):
+def analyze_dataset(images_path, anns_path):
     """
-    :param cat_ids: list of category ids
-    :param img_ids: list of image ids in specified categories
-    :param coco_data: loaded coco dataset
-    :return: average number of objects of the given classes in an image
+    Computes and stores the analysis of the dataset
+
+    :param images_path: path to images
+    :param anns_path: path to annotations
+    :return: path to analysis file
     """
-    data = []
-    for img in img_ids:
-        ann_ids = coco_data.getAnnIds(imgIds=img, catIds=cat_ids)
-        data.append((img, len(ann_ids)))
-    df = pd.DataFrame(data, columns=["imgID", "number of objs"])
-    avg = df["number of objs"].sum() / len(df["number of objs"])
-    return avg, df
+    f = open(anns_path)
+    data = json.load(f)
+    info = data["info"]
+    all_anns = data["annotations"]
+    all_images = data["images"]
+    all_classes = data["categories"]
 
+    ###########################################################################
+    # Check class IDs
 
-def get_proportion(cats, img_ids, coco_data, ann_ids=None):
+    # Step 1: get all class IDs
+    class_ids = []
+    class_ids_set = set()
+    for cl in all_classes:
+        class_ids.append(int(cl["id"]))
+        class_ids_set.add(int(cl["id"]))
+
+    # Step 2: define range of possible IDs [min_id,max_id]
+    min_id = min(class_ids)
+    max_id = max(class_ids)
+    ids_range = str(min_id) + "-" + str(max_id)
+
+    # Step 3: count occurrences of each ID
+    id_count = [0] * (max_id+1)
+    for class_id in class_ids:
+        id_count[class_id] += 1
+
+    # Step 3: check no ID is used more than once and that there are no gaps
+    unused_ids = []
+    repeated_ids = []
+    for i in range(len(id_count)):
+        if id_count[i] == 0:
+            unused_ids.append(i)
+        elif id_count[i] > 1:
+            repeated_ids.append(i)
+
+    ###########################################################################
+    # Order images and annotations by class
+
+    classes = {}
+    for cl in all_classes:
+        # Order by ID
+        cl_id = int(cl["id"])
+        classes[cl_id] = {}
+
+        classes[cl_id]["name"] = cl["name"].lower()
+        classes[cl_id]["num_objects"] = 0
+        classes[cl_id]["num_images"] = 0
+        classes[cl_id]["images"] = set()
+        classes[cl_id]["bbox_min_dims"] = {
+            "width" : 10000000,
+            "height" : 10000000
+        }
+        classes[cl_id]["bbox_max_dims"] = {
+            "width" : -1,
+            "height" : -1
+        }
+
+    ###########################################################################
+    # Get all images info
+
+    wrong_dims = set()
+    image_ids_set = set()
+    images = {}
+    for image in all_images:
+        # Order by ID
+        image_ids_set.add(int(image["id"]))
+        image_id = int(image["id"])
+        images[image_id] = {}
+
+        # Get the file name
+        file_name = image["file_name"].split('/')[-1]
+        file_name = os.path.join(images_path, file_name)
+        images[image_id]["file_name"] = file_name
+
+        # Get the image dimensions width x height
+        images[image_id]["width"] = image["width"]
+        images[image_id]["height"] = image["height"]
+        if image["width"] != 1920 or image["height"] != 1080:
+            wrong_dims.add(image_id)
+        
+        # Initialise empty lists for all objects and classes in image
+        images[image_id]["objects"] = []
+        images[image_id]["classes"] = set()
+
+    ###########################################################################
+    # Check the classes and images referenced by the annotations
+
+    # Step 1: collect all class and image IDs referenced in anns
+    referenced_classes = set()
+    referenced_images = set()
+    for ann in all_anns:
+        referenced_classes.add(int(ann["category_id"]))
+        referenced_images.add(int(ann["image_id"]))
+
+    # Step 2: get empty class and image IDS
+    empty_classes = list(class_ids_set.difference(referenced_classes))
+    empty_images = list(image_ids_set.difference(referenced_images))
+
+    # Step 3: get missing class and image IDS 
+    missing_classes = list(referenced_classes.difference(class_ids_set))
+    missing_images = list(referenced_images.difference(image_ids_set))
+
+    ###########################################################################
+    # Add annotations to images, images to classes, and update bbox dims
+
+    min_bbox_dims_string = "10000000x10000000"
+    min_bbox_dims = 10000000*10000000
+    min_bbox_dims_class = ""
+    max_bbox_dims_string = "-1*1"
+    max_bbox_dims= -1*1
+    max_bbox_dims_class = ""
+
+    for ann in all_anns:
+        # Get the class ID
+        class_id = int(ann["category_id"])
+
+        # Update objects count in class dict
+        classes[class_id]["num_objects"] += 1
+
+        # Get the image ID
+        image_id = int(ann["image_id"])
+
+        # Add annotation to image
+        images[image_id]["objects"].append(ann)
+        
+        # Add class ID to image
+        images[image_id]["classes"].add(class_id)
+
+        # Add image to class
+        classes[class_id]["images"].add(image_id)
+
+        # Update bbox dims
+        prev_min_width = classes[class_id]["bbox_min_dims"]["width"]
+        prev_max_width = classes[class_id]["bbox_max_dims"]["width"]
+        curr_width = int(ann["bbox"][2])
+        classes[class_id]["bbox_min_dims"]["width"] = min(prev_min_width,curr_width)
+        classes[class_id]["bbox_max_dims"]["width"] = max(prev_max_width,curr_width)
+        
+        prev_min_height = classes[class_id]["bbox_min_dims"]["height"]
+        prev_max_height = classes[class_id]["bbox_max_dims"]["height"]
+        curr_height = int(ann["bbox"][3])
+        classes[class_id]["bbox_min_dims"]["height"] = min(prev_min_height,curr_height)
+        classes[class_id]["bbox_max_dims"]["height"] = max(prev_max_height,curr_height)
+
+        curr_dims = int(ann["bbox"][2])*int(ann["bbox"][3])
+        if curr_dims < min_bbox_dims:
+            min_bbox_dims_string = str(ann["bbox"][2]) +"x"+str(ann["bbox"][3])
+            min_bbox_dims = curr_dims
+            min_bbox_dims_class = classes[class_id]["name"]
+        if curr_dims > max_bbox_dims:
+            max_bbox_dims_string = str(ann["bbox"][2]) +"x"+str(ann["bbox"][3])
+            max_bbox_dims = curr_dims
+            max_bbox_dims_class = classes[class_id]["name"]
+
+    bbox_stats = {
+        "min" : min_bbox_dims_string,
+        "min_class" : min_bbox_dims_class,
+        "max" : max_bbox_dims_string,
+        "max_class" : max_bbox_dims_class
+    }
+
+    ###########################################################################
+    # Update images count per class
+
+    for class_id in classes:
+        num_images = len(classes[class_id]["images"])
+        classes[class_id]["num_images"] = num_images
+
+    ###########################################################################
+    # Get min, max and avg objects per image
+
+    min_objects_per_image = 10000000
+    max_objects_per_image = -1
+    avg_objects_per_image = 0
+    for image in images:
+        curr_num_objects = len(images[image]["objects"])
+        min_objects_per_image = min(min_objects_per_image,curr_num_objects)
+        max_objects_per_image = max(max_objects_per_image,curr_num_objects)
+        avg_objects_per_image += curr_num_objects
+
+    avg_objects_per_image /= len(all_images)
+
+    objects_per_image_stats = {
+        "min" : str(min_objects_per_image),
+        "max" : str(max_objects_per_image),
+        "avg" : str(avg_objects_per_image)
+    }
+    ###########################################################################
+    # Change all sets into lists to allow JSON serialization
+
+    for cl in classes:
+        classes[cl]["images"] = list(classes[cl]["images"])
+
+    for image in images:
+        images[image]["classes"] = list(images[image]["classes"])
+
+    wrong_dims = list(wrong_dims)
+
+    ###########################################################################
+    # Group analysis results together, write to file and return path
+
+    analysis = {
+        "info" : info,
+        "total_num_objects" : str(len(all_anns)),
+        "total_num_images" : str(len(all_images)),
+        "classes" : classes,
+        "images" : images,
+        "objects_per_image_stats" : objects_per_image_stats,
+        "bbox_stats" : bbox_stats,
+        "ids_range" : ids_range,
+        "unused_IDs" : unused_ids,
+        "repeated_IDs" : repeated_ids,
+        "empty_classes" : empty_classes,
+        "empty_images" : empty_images,
+        "missing_classes" : missing_classes,
+        "missing_images" : missing_images,
+        "wrong_dims" : wrong_dims
+    }
+
+    if not os.path.isdir("./output"):
+        os.mkdir("./output")
+    analysis_path = "./output/analysis.json"
+    f = open(analysis_path,'w')
+    data = json.dumps(analysis, indent=4)
+    f.write(data)
+
+    return analysis_path
+
+def parse_annotations(content):
     """
-    :param cats: list of category ids
-    :param img_ids: list of image ids in specified categories
-    :param coco_data: loaded coco dataset
-    :param ann_ids: list of object IDs
-    :return: average proportion an object of the given classes take up in the
-    image, uses all objs if ann_ids is None
-    :return: df containing area of each object, along with its annID and imgID
+    Parses the annotations and writes them to file for later use
+
+    :param contents: the contents of the upload btn
+    :return: path to annotations file
     """
-    data = []
-    for imgid in img_ids:
-        im_ann = coco_data.loadImgs(ids=imgid)[0]
-        all_ann_ids = coco_data.getAnnIds(imgIds=imgid, catIds=cats, iscrowd=0)
-        if ann_ids is not None:
-            all_ann_ids = list(set(all_ann_ids).intersection(set(ann_ids)))
-        objs = coco_data.loadAnns(ids=all_ann_ids)
-        for obj in objs:
-            # Check if annotation file includes precomputed area for object
-            # If not, area needs to be calculated
-            if "area" in obj:
-                proportion = obj["area"] / (im_ann["width"] * im_ann["height"])
-            else:
-                poly_verts = segment_to_2d_array(obj["segmentation"])
-                area = get_area(poly_verts)
-                proportion = area / (im_ann["width"] * im_ann["height"])
-            data.append((imgid, obj["id"], proportion))
-    df = pd.DataFrame(data, columns=["imgID", "annID", "proportion of img"])
-    avg = df["proportion of img"].sum() / len(df["proportion of img"])
-    return avg, df
+    decoded_annotations = base64.b64decode(content).decode("UTF-8")
+    if not os.path.isdir("./output"):
+        os.mkdir("./output")
+    path_to_annotations = "./output/annotations.json"
+    f = open(path_to_annotations, 'w')
+    f.write(decoded_annotations)
+    return path_to_annotations
 
-
-def get_roughness(cats, img_ids, coco_data, ann_ids=None):
+def parse_analysis(content):
     """
-    :param cats: list of category ids
-    :param img_ids: list of image ids in specified categories
-    :param coco_data: loaded coco dataset
-    :param ann_ids: list of object IDs
-    :return: average roughness an object of the given classes, uses all objs
-    if ann_ids is None
-    :return: df containing roughness of each object, along with its annID+imgID
-             "roughness" = number of segmentation vertices / area of obj
+    Parses the analysis and writes it to file for later use
+
+    :param contents: the contents of the upload btn
+    :return: path to analysis file
     """
-    data = []
-    for imgID in img_ids:
-        all_ann_ids = coco_data.getAnnIds(imgIds=imgID, catIds=cats, iscrowd=0)
-        if ann_ids is not None:
-            all_ann_ids = list(set(all_ann_ids).intersection(set(ann_ids)))
-        objs = coco_data.loadAnns(ids=all_ann_ids)
-        for obj in objs:
-            num_vertices = len(obj["segmentation"])
-            # Check if annotation file includes precomputed area for object
-            # If not, area needs to be calculated
-            if "area" in obj:
-                roughness = num_vertices / obj["area"]
-            else:
-                poly_verts = segment_to_2d_array(obj["segmentation"])
-                area = get_area(poly_verts)
-                roughness = num_vertices / area
-            data.append((imgID, obj["id"], roughness * 1000))
-    df = pd.DataFrame(data, columns=["imgID", "annID", "roughness"])
-    avg = df["roughness"].sum() / len(df["roughness"])
-    return avg, df
-
-
-def get_area(polygon):
-    """
-    :param polygon: list of (x, y) points defining a polygon
-    :return: area of the polygon
-    """
-    xs = np.array([x[0] for x in polygon])
-    ys = np.array([y[1] for y in polygon])
-    v = np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
-    return 0.5 * v
-
-
-def segment_to_2d_array(segmentation):
-    """
-    :param segmentation: coco-style segmentation
-    :return: list of (x, y) points defining a polygon
-    """
-    polygon = []
-    for partition in segmentation:
-        for x, y in zip(partition[::2], partition[1::2]):
-            polygon.append((x, y))
-    return polygon
-
-
-def mask_pixels(polygon, img_dict, image_folder):
-    """
-    :param polygon: list of (x, y) points defining a polygon
-    :param img_dict: image metadata from JSON annotation data
-    :param image_folder: path to folder containing images
-    :return: loaded image and mask of object
-    """
-    img = cv2.imread(os.path.join(image_folder, img_dict["file_name"]))
-    mask = np.zeros(img.shape, dtype=np.uint8)
-    polygon = np.int32(polygon)
-    mask = cv2.fillPoly(mask, pts=[polygon], color=(255, 255, 255))
-    return img, mask
-
-
-def get_obj_masks(cats, img_ids, image_folder, coco_data, sample=500):
-    """
-    :param cats: list of category ids
-    :param img_ids: list of image ids in specified categories
-    :param image_folder: path to folder containing images
-    :param coco_data: loaded coco dataset
-    :param sample: sample number of imgs to speed up processing
-    :return: loaded images, list of object masks, and objIDs specified class
-    """
-    # If number of img_ids exceeds sample_images,
-    # take a random sample to speed up processing time
-    if len(img_ids) > sample:
-        img_ids = random.sample(img_ids, sample)
-    imgs = coco_data.loadImgs(img_ids)
-    mask_ann_ids = []
-    masks = []
-    loaded_imgs = []
-    for img_dict in tqdm(imgs):
-        # Load annotations
-        id = img_dict["id"]
-        ann_ids = coco_data.getAnnIds(imgIds=id, catIds=cats, iscrowd=0)
-        anns = coco_data.loadAnns(ann_ids)
-        mask_ann_ids.extend(ann_ids)
-        # Create masked images
-        for ann in anns:
-            poly_verts = segment_to_2d_array(ann["segmentation"])
-            img, mask = mask_pixels(poly_verts, img_dict, image_folder)
-            masks.append(mask)
-            loaded_imgs.append(img)
-    return loaded_imgs, masks, mask_ann_ids
-
-
-def get_histograms(images, masks, hist_size=50, hist_range=(0, 256), acc=False):
-    """
-    :param images: list of loaded images
-    :param masks: list of object masks corresponding to images
-    :param hist_size: number of bins in histograms
-    :param hist_range: range of values to include in histograms
-    :param acc: flag to clear histogram before calculation
-    :return: (hist_size, 3) numpy array of B, G, R histograms
-    """
-    data = []
-    for image, mask in tqdm(zip(images, masks)):
-        img_float32 = np.float32(image)
-        bgr_planes = cv2.split(img_float32)
-
-        b_hist = cv2.calcHist(
-            bgr_planes, [0], mask, [hist_size], hist_range, accumulate=acc
-        )
-        g_hist = cv2.calcHist(
-            bgr_planes, [1], mask, [hist_size], hist_range, accumulate=acc
-        )
-        r_hist = cv2.calcHist(
-            bgr_planes, [2], mask, [hist_size], hist_range, accumulate=acc
-        )
-
-        hist_h = 400
-        b_features = cv2.normalize(
-            b_hist, b_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX
-        ).flatten()
-        g_features = cv2.normalize(
-            g_hist, g_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX
-        ).flatten()
-        r_features = cv2.normalize(
-            r_hist, r_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX
-        ).flatten()
-        data.append([b_features, g_features, r_features])
-    return np.array(data)
-
-
-def get_obj_colors(images, masks):
-    """
-    :param images: list of loaded images
-    :param masks: list of object masks corresponding to images
-    :return: list of dominant colours of each object specified by its mask
-    """
-    n_colors = 4
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.1)
-    flags = cv2.KMEANS_RANDOM_CENTERS
-
-    data = []
-    img_masks = zip(images, masks)
-    for image, mask in tqdm(img_masks):
-        masked_image = cv2.bitwise_and(image, mask)
-        masked_image = cv2.cvtColor(masked_image, cv2.COLOR_BGR2RGB)
-
-        pixels = np.float32(masked_image.reshape(-1, 3))
-        pixels = pixels[np.all(pixels != 0, axis=1), :]
-        _, lab, pal = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
-        _, counts = np.unique(lab, return_counts=True)
-
-        indices = np.argsort(counts)[::-1]
-        dom_colour = pal[indices[0]]
-        data.append(dom_colour)
-    return data
-
-
-def analyze_dataset(annotation_file, imgs_path):
-    """
-    :param annotation_file: path to JSON coco-style annotation file
-    :param imgs_path: path to folder containing images corresponding to
-    annotation_file
-    :return: final analysis dataframe
-    """
-    coco_data = coco.COCO(annotation_file)
-    cats = coco_data.loadCats(coco_data.getCatIds())
-    names = [cat["name"] for cat in cats]
-    data = []
-    for idx, cat in enumerate(names):
-        cat = [cat]
-        print(cat[0] + ": " + str(idx + 1) + "/" + str(len(names)))
-        cat_ids = coco_data.getCatIds(catNms=cat)
-        img_ids = coco_data.getImgIds(catIds=cat_ids)
-        ann_ids = coco_data.getAnnIds(catIds=cat_ids)
-
-        # print("Loading object masks...")
-        # imgs, masks, anns = get_obj_masks(cat_ids, img_ids, imgs_path, coco_data)
-
-        print("Getting number of objects...")
-        num_objs = len(ann_ids)
-
-        print("Getting number of images...")
-        num_imgs = len(img_ids)
-
-        print("Getting average number of objects per images...")
-        avg_objs_per_img, _ = get_objs_per_img(cat_ids, img_ids, coco_data)
-
-        print("Getting average area...")
-        avg_area, area_data = get_proportion(cat_ids, img_ids, coco_data)
-
-        print("Getting average roughness of segmentation...")
-        avg_roughness, roughness = get_roughness(cat_ids, img_ids, coco_data)
-
-        # TODO: find better method for colour analysis
-        # print("Getting object histograms...")
-        # hist_data = getHistograms(imgs, masks)
-        hist_data = None
-
-        # print("Getting dominant object colours...")
-        # colour_data = getObjColors(imgs, masks)
-        colour_data = None
-
-        print("Getting abnormal objects...")
-        preds_df = get_outliers(
-            hist_data, colour_data, area_data, roughness, contam=0.05
-        )
-        outlier_img_ids, outlier_ann_ids = get_anomalies(
-            cat_ids, preds_df["lof"], coco_data
-        )
-        print("Done!")
-        print()
-        data.append(
-            (
-                cat[0],
-                num_objs,
-                num_imgs,
-                avg_objs_per_img,
-                avg_area,
-                avg_roughness,
-                outlier_img_ids,
-                outlier_ann_ids,
-            )
-        )
-    df = pd.DataFrame(
-        data,
-        columns=[
-            "category",
-            "number of objects",
-            "number of images",
-            "avg number of objects per img",
-            "avg percentage of img",
-            "avg num vertices x 1000 / area",
-            "images w/ abnormal objects",
-            "abnormal objects",
-        ],
-    )
-    os.chdir("..")
-    print(os.getcwd())
-    outname = "analysis" + time.strftime("%Y%m%d%H%M%S")
-    outdir = "output"
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    analysis_path = os.path.join(outdir, outname)
-    df.to_feather(analysis_path)
-    return df, analysis_path
+    decoded_analysis = base64.b64decode(content).decode("UTF-8")
+    if not os.path.isdir("./output"):
+        os.mkdir("./output")
+    path_to_analysis = "./output/analysis.json"
+    f = open(path_to_analysis, 'w')
+    f.write(decoded_analysis)
+    return path_to_analysis
