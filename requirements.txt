@@ -27,3 +27,7 @@ nltk~=3.5
 dash_daq
 alibi-detect
 outlier_utils
+Cython
+torch
+pytest
+torchvision
