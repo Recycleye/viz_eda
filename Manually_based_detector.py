@@ -11,8 +11,8 @@ from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import StandardScaler
 
-#from anomaly_analysis.anomaly_feature_extraction import get_roughness, get_histograms, \
-    #get_obj_colors, get_proportion
+from anomaly_analysis.anomaly_feature_extraction import get_roughness, get_histograms, \
+    get_obj_colors, get_proportion
 
 
 def combine_feature_dataset(annotation_file, img_folder, intermediate_rlt_path, cat_name=[]):

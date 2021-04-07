@@ -1,9 +1,10 @@
-from pycocotools.coco import COCO
-import cv2
 import json
-import numpy as np
 import os
+
+import cv2
+import numpy as np
 import tensorflow as tf
+from pycocotools.coco import COCO
 from tqdm import tqdm
 
 tf.keras.backend.clear_session()
@@ -11,8 +12,7 @@ from tensorflow.keras.layers import Conv2D, Conv2DTranspose, \
     Dense, Reshape, InputLayer, Flatten
 
 from alibi_detect.od import OutlierAE
-from alibi_detect.utils.saving import save_detector, load_detector
-from crop_utils import batch_crop_images, view_annotation
+from crop_utils import batch_crop_images
 
 from anomaly_detector import create_destination
 
@@ -121,11 +121,6 @@ def detect_anomalies_auto_encoder(annotation_path, images_path, intermediate_rlt
             # train
             od.fit(X_train,
                    epochs=30)
-
-            # save the trained outlier detector
-            save_detector(od, model_path)
-
-        od = load_detector(model_path)
 
         resized_test = np.reshape(X_train_ls, (len(X_train_ls), 32, 32, 3))
         res = od.predict(resized_test)
