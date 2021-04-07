@@ -8,7 +8,7 @@ from pycocotools.coco import COCO
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 
-#from anomaly_analysis.anomaly_feature_extraction import get_HOG
+from anomaly_analysis.anomaly_feature_extraction import get_HOG
 from anomaly_detector import create_destination
 from crop_utils import batch_crop_images
 
