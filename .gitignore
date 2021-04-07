@@ -12,3 +12,4 @@ coco/
 venv/
 cache-directory/
 node_modules
+yolo.h5
