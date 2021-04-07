@@ -1,0 +1,14 @@
+data/*
+.dockerignore
+.gitignore
+output
+/temp/
+blob_data/*
+.DS_Store
+.idea/
+__pycache__/
+app/__pycache__
+coco/
+venv/
+cache-directory/
+node_modules
