@@ -17,4 +17,4 @@ ADD . /app/
 
 EXPOSE 80
 ENTRYPOINT [ "python" ]
-CMD ["application.py"]
+CMD ["index.py"]
