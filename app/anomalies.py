@@ -190,51 +190,18 @@ def create_summary(algorithm_name):
 
 
 def create_anomaly_output_section(algorithm, page_size):
-    anomaly_table = dash_table.DataTable(
-        id=f"anomaly-data-table-{algorithm['name']}",
-        # data_algorithm_index=i,
-        columns=[
-            {"name": i, "id": i} for i in algorithm['column_names']
-        ],
-        page_current=0,
-        page_size=page_size,
-        page_action='custom',
-
-        sort_action='custom',
-        sort_mode='single',
-        sort_by=[],
-
-        row_selectable="multi",
-        selected_rows=[],
-        style_table={'margin-top': '15px'},
-        style_cell_conditional=[
-            {
-                'if': {'column_id': c},
-                'textAlign': 'left'
-            } for c in algorithm['column_names']
-        ],
-        style_data_conditional=[
-            {
-                'if': {'row_index': 'odd'},
-                'backgroundColor': 'rgb(248, 248, 248)'
-            }
-        ],
-        style_header={
-            'backgroundColor': 'rgb(230, 230, 230)',
-            'fontWeight': 'bold'
-        },
-
-        export_format='csv',
-        export_headers='display',
-    )
     summary_section = create_summary(algorithm['name'])
 
     image_cell_preview = dbc.Row([], id=f"anomaly-image-cell-{algorithm['name']}", className="row d-xxl-flex")
-    image_card = create_anomaly_editing_image_card(algorithm['name'])
     image_cols_preview = dbc.Row([], id=f"anomaly-image-cols-{algorithm['name']}", className="row d-xxl-flex")
-    anomaly_table_image_div = html.Div(
-        [anomaly_table, image_card, image_cell_preview, image_cols_preview],
-        id=f"anomaly-table-image-div-{algorithm['name']}")
+    image_card = create_anomaly_editing_image_card(algorithm['name'])
+    anomaly_table = create_data_table(algorithm)
+    anomaly_table_image_div = dbc.Container(
+        [dbc.Row([dbc.Col(anomaly_table, width=12, xl=7), dbc.Col(image_card, width=12, xl=5)])],
+        fluid=True,
+        id=f"anomaly-table-image-div-{algorithm['name']}"
+    )
+
     hidden_div = html.Div(id=f"algorithm-name-{algorithm['name']}", children=algorithm['name'],
                           style={'display': 'none'})
 
@@ -262,7 +229,7 @@ def create_anomaly_editing_image_card(algorithm_name):
             dbc.CardBody([
                 dbc.Row(
                     [dbc.Col(
-                        html.Div("row: "), width=1),
+                        html.Div("row: "), width=2),
                         dbc.Col(dcc.Dropdown(
                             id=f"df-row-{algorithm_name}",
 
@@ -270,7 +237,7 @@ def create_anomaly_editing_image_card(algorithm_name):
                                 {'label': i, 'value': i} for i in range(10)
                             ],
                             value=0,
-                            placeholder='Row'), width=1)], justify="start"),
+                            placeholder='Row'), width=2)], justify="start"),
                 dbc.Row(
                     dbc.Col(
                         id=f"anomaly-graph-col-{algorithm_name}"
@@ -305,5 +272,55 @@ def create_anomaly_editing_image_card(algorithm_name):
         ]
     )
     return image_card
-    # if __name__ == '__main__':
-    # generate_anomalies("")
+
+
+def create_data_table(algorithm):
+    anomaly_table = dash_table.DataTable(
+        id=f"anomaly-data-table-{algorithm['name']}",
+        # data_algorithm_index=i,
+        columns=[
+            {"name": i, "id": i} for i in algorithm['column_names']
+        ],
+        page_current=0,
+        page_size=PAGE_SIZE,
+        page_action='custom',
+
+        sort_action='custom',
+        sort_mode='single',
+        sort_by=[],
+
+        row_selectable="multi",
+        selected_rows=[],
+        style_table={'margin-top': '15px'},
+        style_cell_conditional=[
+            {
+                'if': {'column_id': c},
+                'textAlign': 'left'
+            } for c in algorithm['column_names']
+        ],
+        style_data_conditional=[
+            {
+                'if': {'row_index': 'odd'},
+                'backgroundColor': 'rgb(248, 248, 248)'
+            }
+        ],
+        style_header={
+            'backgroundColor': 'rgb(230, 230, 230)',
+            'fontWeight': 'bold'
+        },
+
+        export_format='csv',
+        export_headers='display',
+    )
+    return dbc.Card(
+        [
+            dbc.CardHeader(html.H2("Data Table")),
+            dbc.CardBody(
+                dbc.Row(
+                    dbc.Col(
+                        anomaly_table,
+                    )
+                )
+            ),
+        ]
+    )
