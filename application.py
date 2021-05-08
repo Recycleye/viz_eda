@@ -673,7 +673,6 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
     return dfff.to_dict('records'), \
            {'display': 'block'}, \
            create_object_plot(df[df['id'] == dfff.iloc[selected_row]['id']]), \
-           None, \
            highlight_row(selected_row)
 
 
@@ -682,7 +681,6 @@ for algorithm in ALGORITHMS.values():
         Output(f"anomaly-data-table-{algorithm['name']}", 'data'),
         Output(f"anomaly-output-section-{algorithm['name']}", 'style'),
         Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
-        Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
         Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
         # Output(f"anomaly-output-section-{algorithm['name']}", 'active_cell'),
         Input(f"algorithm-name-{algorithm['name']}", 'children'),
@@ -694,18 +692,20 @@ for algorithm in ALGORITHMS.values():
     )(update_table)
 
 
-def test(n_clicks, selected_row):
+def move_on_to_next_row(n_clicks, selected_row):
     if n_clicks is None:
         raise PreventUpdate
-    return (selected_row + 1) % PAGE_SIZE
+    return (selected_row + 1) % PAGE_SIZE, None, None
 
 
 for algorithm in ALGORITHMS.values():
     app.callback(
         Output(f"df-row-{algorithm['name']}", "value"),
+        Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+        Output(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
         Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
         Input(f"df-row-{algorithm['name']}", "value")
-    )(test)
+    )(move_on_to_next_row)
 
 
 # for algorithm in ALGORITHMS.values():
@@ -714,11 +714,11 @@ for algorithm in ALGORITHMS.values():
 #         Input(f"df-row-{algorithm['name']}", "value"))(highlight_row)
 
 
-def manual_mark_anomaly(active_cell, correct_label, anomaly_manual_store):
-    if active_cell is None or correct_label is None:
+def manual_mark_anomaly(selected_row, correct_label, data, anomaly_manual_store):
+    if correct_label is None:
         raise PreventUpdate
     anomaly_manual_store = anomaly_manual_store or {'id': dict()}
-    active_cell_id = str(active_cell['row_id'])
+    active_cell_id = str(data[selected_row]['id'])
     anomaly_manual_store['id'][active_cell_id] = correct_label if correct_label else ""
     print(anomaly_manual_store)
     return anomaly_manual_store
@@ -727,8 +727,9 @@ def manual_mark_anomaly(active_cell, correct_label, anomaly_manual_store):
 for algorithm in ALGORITHMS.values():
     app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
                  # Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
-                 Input(f"anomaly-data-table-{algorithm['name']}", "active_cell"),
+                 Input(f"df-row-{algorithm['name']}", "value"),
                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+                 Input(f"anomaly-data-table-{algorithm['name']}", "data"),
                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
 
 # for algorithm in ALGORITHMS.values():
