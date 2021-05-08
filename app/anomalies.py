@@ -240,15 +240,7 @@ def create_anomaly_output_section(algorithm, page_size):
 
     store = dcc.Store(id=f"anomaly-manual-store-{algorithm['name']}")
 
-    row_dropdown = dcc.Dropdown(
-        id=f"df-row-{algorithm['name']}",
-        options=[
-            {'label': i, 'value': i} for i in range(10)
-        ],
-        value=0,
-        placeholder='Row'
-    )
-    return html.Div([summary_section, anomaly_table_image_div, hidden_div, store, row_dropdown],
+    return html.Div([summary_section, anomaly_table_image_div, hidden_div, store],
                     id=f"anomaly-output-section-{algorithm['name']}")
 
 
@@ -267,12 +259,23 @@ def create_anomaly_editing_image_card(algorithm_name):
     image_card = dbc.Card(
         [
             dbc.CardHeader(html.H2("Change Label or Mark Not Anomaly")),
-            dbc.CardBody(
+            dbc.CardBody([
+                dbc.Row(
+                    [dbc.Col(
+                        html.Div("row: "), width=1),
+                        dbc.Col(dcc.Dropdown(
+                            id=f"df-row-{algorithm_name}",
+
+                            options=[
+                                {'label': i, 'value': i} for i in range(10)
+                            ],
+                            value=0,
+                            placeholder='Row'), width=1)], justify="start"),
                 dbc.Row(
                     dbc.Col(
                         id=f"anomaly-graph-col-{algorithm_name}"
                     ),
-                )
+                )]
             ),
             dbc.CardFooter([
                 dbc.Row(

@@ -5,7 +5,8 @@ from flask_caching import Cache
 
 external_stylesheets = [
     # Loading screen CSS
-    dbc.themes.BOOTSTRAP, 'https://codepen.io/chriddyp/pen/brPBPO.css', ]
+    # dbc.themes.BOOTSTRAP, 'https://codepen.io/chriddyp/pen/brPBPO.css', ]
+    dbc.themes.BOOTSTRAP]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 app.config["suppress_callback_exceptions"] = True
 
