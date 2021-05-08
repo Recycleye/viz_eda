@@ -165,6 +165,30 @@ def anomalies_contents(analysis_path):
                      empty_div])
 
 
+def create_summary(algorithm_name):
+    return dbc.Card(
+        id=f"summary-section-{algorithm_name}",
+        style={'display': 'none'},
+        children=[
+            # dbc.CardHeader(html.H2("Annotation area")),
+            dbc.CardBody(
+                [
+                    dbc.Row([], id=f"summary-cards-{algorithm_name}",
+                            className="col-sm-12 col-md-12 col-lg-12 col-xl-12 d-flex",
+                            style={"margin-top": "15px"}),
+
+                    dbc.Row([
+                        dbc.Col(daq.ToggleSwitch(
+                            id=f"table-toggle-{algorithm_name}",
+                            value=False
+                        ), width=1),
+                        dbc.Col(html.Div("Show Anomaly Table"), width=3)], style={'margin-bottom': '15px'})
+                ]
+            ),
+        ],
+    )
+
+
 def create_anomaly_output_section(algorithm, page_size):
     anomaly_table = dash_table.DataTable(
         id=f"anomaly-data-table-{algorithm['name']}",
@@ -203,19 +227,14 @@ def create_anomaly_output_section(algorithm, page_size):
         export_format='csv',
         export_headers='display',
     )
-    summary_cards = html.Div([], id=f"summary-cards-{algorithm['name']}",
-                             className="col-sm-12 col-md-12 col-lg-12 col-xl-12 d-flex", style={'display': 'none'})
-    table_toggle = dbc.Row([
-        dbc.Col(daq.ToggleSwitch(
-            id=f"table-toggle-{algorithm['name']}",
-            value=False
-        ), width=1),
-        dbc.Col(html.Div("Show Anomaly Table"), width=3)], style={'margin-bottom': '15px'})
+    summary_section = create_summary(algorithm['name'])
+
     image_cell_preview = dbc.Row([], id=f"anomaly-image-cell-{algorithm['name']}", className="row d-xxl-flex")
     image_card = create_anomaly_editing_image_card(algorithm['name'])
     image_cols_preview = dbc.Row([], id=f"anomaly-image-cols-{algorithm['name']}", className="row d-xxl-flex")
-    anomaly_table_image_div = html.Div([anomaly_table, image_card, image_cell_preview, image_cols_preview],
-                                       id=f"anomaly-table-image-div-{algorithm['name']}")
+    anomaly_table_image_div = html.Div(
+        [anomaly_table, image_card, image_cell_preview, image_cols_preview],
+        id=f"anomaly-table-image-div-{algorithm['name']}")
     hidden_div = html.Div(id=f"algorithm-name-{algorithm['name']}", children=algorithm['name'],
                           style={'display': 'none'})
 
@@ -229,7 +248,7 @@ def create_anomaly_output_section(algorithm, page_size):
         value=0,
         placeholder='Row'
     )
-    return html.Div([summary_cards, table_toggle, anomaly_table_image_div, hidden_div, store, row_dropdown],
+    return html.Div([summary_section, anomaly_table_image_div, hidden_div, store, row_dropdown],
                     id=f"anomaly-output-section-{algorithm['name']}")
 
 

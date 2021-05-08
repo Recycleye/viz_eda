@@ -571,7 +571,7 @@ def tabulate_anomalies(algorithm_name, selected_algorithms):
     max_idx = freq.argmax()
     class_highest_anomaly_name = freq.index[max_idx]
     class_highest_anomaly_cnt = freq[max_idx]
-    summary_row = dbc.Row([
+    summary_row = [
         dbc.Col(
             summary_card('Algorithm', ALGORITHMS[algorithm_name]['label'], ""),
             className="col-sm-3 col-lg-3 col-xxl-3 d-flex"),
@@ -584,15 +584,14 @@ def tabulate_anomalies(algorithm_name, selected_algorithms):
                 className="col-sm-3 col-lg-3 col-xxl-3 d-flex"),
         dbc.Col(summary_card('Class with Highest Number of Anomalies', class_highest_anomaly_name,
                              f"Number of Anomalies: {class_highest_anomaly_cnt}"),
-                className="col-sm-3 col-lg-3 col-xxl-3 d-flex")], className="row d-xxl-flex",
-        style={"margin-top": "15px"})
-    return summary_row, {'display': 'block'}
+                className="col-sm-3 col-lg-3 col-xxl-3 d-flex")]
+    return summary_row, {'display': 'block', "width": "100%"}
 
 
 for algorithm in ALGORITHMS.values():
     app.callback(
         Output(f"summary-cards-{algorithm['name']}", 'children'),
-        Output(f"summary-cards-{algorithm['name']}", 'style'),
+        Output(f"summary-section-{algorithm['name']}", 'style'),
         Input(f"algorithm-name-{algorithm['name']}", 'children'),
         Input('algo-selection', 'value')
     )(tabulate_anomalies)
