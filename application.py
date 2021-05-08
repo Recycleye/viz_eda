@@ -6,13 +6,13 @@ import time
 from typing import List
 
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 from flask import send_from_directory
-from functools import reduce
 
-from pycocotools.coco import COCO
-
+# Test generate anomalies
+from anomaly_detector import generate_anomalies
 from app.analysis import analyze_dataset, parse_annotations
-from app.anomalies import anomalies_contents
+from app.anomalies import anomalies_contents, PAGE_SIZE
 from app.classes import classes_contents, generate_class_report
 from app.dashboard import dashboard_contents
 from app.mainMenu import *
@@ -20,8 +20,6 @@ from app.stats import stats_contents
 from app.warnings import warnings_contents
 # App configuration
 from dash_app import app, cache
-# Test generate anomalies
-from anomaly_detector import generate_anomalies
 
 output_dir = os.path.join(os.getcwd(), "output")
 images_path = ""
@@ -600,6 +598,23 @@ for algorithm in ALGORITHMS.values():
     )(tabulate_anomalies)
 
 
+# def show_active_cell(algorithm_name, row_selcted):
+#     df = generate_anomalies(analysis_path,
+#                             ALGORITHMS[algorithm_name]['detector'],
+#                             ALGORITHMS[algorithm_name]['df_creator'])
+#     print(f"active_cell: {row_selcted}")
+#     active_row = df[df['id'] == dff.iloc[row_selcted]['row_id']]
+#     return create_object_plot(active_row), None  # clear dropdown
+
+
+# for algorithm in ALGORITHMS.values():
+#     app.callback(Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
+#                  Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+#                  Input(f"algorithm-name-{algorithm['name']}", 'children'),
+#                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value")
+#                  )(show_active_cell)
+
+
 def toggle_anomaly_table_image_div(toggle):
     return {'display': 'block'} if toggle else {'display': 'none'}
 
@@ -623,9 +638,18 @@ def display_anomaly_output(button_clicked, selected_algorithms):
     return {'display': 'block'}, plots
 
 
-def update_table(algorithm_name, page_current, page_size, sort_by, selected_algorithms):
+def highlight_row(selected_row):
+    return [{
+        "if": {"row_index": selected_row if selected_row else 0},
+        "backgroundColor": "teal",
+        'color': 'white'
+    }]
+
+
+def update_table(algorithm_name, page_current, page_size, sort_by, selected_algorithms, selected_row):
     if not selected_algorithms or algorithm_name not in selected_algorithms or algorithm_name not in ALGORITHMS:
-        return None, {'display': 'none'}
+        # return None, {'display': 'none'}
+        raise PreventUpdate
     df = generate_anomalies(analysis_path,
                             ALGORITHMS[algorithm_name]['detector'],
                             ALGORITHMS[algorithm_name]['df_creator'])
@@ -639,22 +663,81 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
         # No sort is applied
         dff = df
 
-    return dff.iloc[
-           page_current * page_size:(page_current + 1) * page_size
-           ].to_dict('records'), {'display': 'block'}
+    # active_cell = {'row': 0, 'column': 1, 'column_id': 'id', 'row_id': dff.iloc[0]['id']}
+    # print(f"CHOSEN CELL: {active_cell}")
+    print(f"active_cell: {selected_row}, page current: {page_current}")
+    selected_row = selected_row if selected_row else 0
+    dfff = dff.iloc[page_current * page_size:(page_current + 1) * page_size]
+    # print(dfff)
+    # df[df['id'] == active_cell['row_id']]
+
+    return dfff.to_dict('records'), \
+           {'display': 'block'}, \
+           create_object_plot(df[df['id'] == dfff.iloc[selected_row]['id']]), \
+           None, \
+           highlight_row(selected_row)
 
 
 for algorithm in ALGORITHMS.values():
     app.callback(
         Output(f"anomaly-data-table-{algorithm['name']}", 'data'),
         Output(f"anomaly-output-section-{algorithm['name']}", 'style'),
+        Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
+        Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+        Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
+        # Output(f"anomaly-output-section-{algorithm['name']}", 'active_cell'),
         Input(f"algorithm-name-{algorithm['name']}", 'children'),
         Input(f"anomaly-data-table-{algorithm['name']}", "page_current"),
         Input(f"anomaly-data-table-{algorithm['name']}", "page_size"),
         Input(f"anomaly-data-table-{algorithm['name']}", 'sort_by'),
-        Input('algo-selection', 'value')
+        Input('algo-selection', 'value'),
+        Input(f"df-row-{algorithm['name']}", "value"),
     )(update_table)
 
+
+def test(n_clicks, selected_row):
+    if n_clicks is None:
+        raise PreventUpdate
+    return (selected_row + 1) % PAGE_SIZE
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"df-row-{algorithm['name']}", "value"),
+        Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
+        Input(f"df-row-{algorithm['name']}", "value")
+    )(test)
+
+
+# for algorithm in ALGORITHMS.values():
+#     app.callback(
+#         Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
+#         Input(f"df-row-{algorithm['name']}", "value"))(highlight_row)
+
+
+def manual_mark_anomaly(active_cell, correct_label, anomaly_manual_store):
+    if active_cell is None or correct_label is None:
+        raise PreventUpdate
+    anomaly_manual_store = anomaly_manual_store or {'id': dict()}
+    active_cell_id = str(active_cell['row_id'])
+    anomaly_manual_store['id'][active_cell_id] = correct_label if correct_label else ""
+    print(anomaly_manual_store)
+    return anomaly_manual_store
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
+                 # Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
+                 Input(f"anomaly-data-table-{algorithm['name']}", "active_cell"),
+                 Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+                 State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
+
+# for algorithm in ALGORITHMS.values():
+#     app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
+#                  # Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
+#                  Input(f"anomaly-data-table-{algorithm['name']}", "active_cell"),
+#                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+#                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
 import plotly.express as px
 from PIL import Image
 
@@ -663,22 +746,6 @@ def encode_image(file_name):
     # file_name_string = file_name.split('/')[-1]
     return Image.open(file_name)
 
-
-def show_active_cell(algorithm_name, active_cell):
-    if not active_cell:
-        return None
-    df = generate_anomalies(analysis_path,
-                            ALGORITHMS[algorithm_name]['detector'],
-                            ALGORITHMS[algorithm_name]['df_creator'])
-    active_row = df[df['id'] == active_cell['row_id']]
-    return create_object_plot(active_row)
-
-
-for algorithm in ALGORITHMS.values():
-    app.callback(Output(f"anomaly-image-cell-{algorithm['name']}", 'children'),
-                 Input(f"algorithm-name-{algorithm['name']}", 'children'),
-                 Input(f"anomaly-data-table-{algorithm['name']}", 'active_cell'),
-                 )(show_active_cell)
 
 import plotly.graph_objects as go
 
@@ -698,15 +765,16 @@ def create_object_plot(df_objects):
             x0=image_bbox[0], x1=image_bbox[0] + image_bbox[2], y0=image_bbox[1], y1=image_bbox[1] + image_bbox[3]
         )
         fig.add_trace(
-            go.Scatter(x=[image_bbox[0], image_bbox[0], image_bbox[0] + image_bbox[2], image_bbox[0] + image_bbox[2]],
-                       y=[image_bbox[1] + image_bbox[3], image_bbox[1], image_bbox[1], image_bbox[1] + image_bbox[3]],
-                       text="Label: " + cat_name,
-                       fill='toself',
-                       fillcolor='turquoise',
-                       opacity=0.1,
-                       hoveron='fills',
-                       showlegend=False,
-                       mode='text'))
+            go.Scatter(
+                x=[image_bbox[0], image_bbox[0], image_bbox[0] + image_bbox[2], image_bbox[0] + image_bbox[2]],
+                y=[image_bbox[1] + image_bbox[3], image_bbox[1], image_bbox[1], image_bbox[1] + image_bbox[3]],
+                text="Label: " + cat_name,
+                fill='toself',
+                fillcolor='turquoise',
+                opacity=0.1,
+                hoveron='fills',
+                showlegend=False,
+                mode='text'))
 
     fig.update_layout(
         autosize=False,
@@ -722,6 +790,7 @@ def create_object_plot(df_objects):
         # paper_bgcolor="White",
     )
     return dbc.Col(dcc.Graph(figure=fig), md=3)
+    # return fig
 
 
 def plot_multiple_objects(df, selected_rows):
@@ -743,9 +812,8 @@ def show_selected_cells(algorithm_name, selected_cells):
                             ALGORITHMS[algorithm_name]['df_creator'])
     return plot_multiple_objects(df, selected_cells)
 
-
-for algorithm in ALGORITHMS.values():
-    app.callback(
-        Output(f"anomaly-image-cols-{algorithm['name']}", 'children'),
-        Input(f"algorithm-name-{algorithm['name']}", 'children'),
-        Input(f"anomaly-data-table-{algorithm['name']}", "selected_row_ids"))(show_selected_cells)
+    # for algorithm in ALGORITHMS.values():
+    #     app.callback(
+    #         Output(f"anomaly-image-cols-{algorithm['name']}", 'children'),
+    #         Input(f"algorithm-name-{algorithm['name']}", 'children'),
+    #         Input(f"anomaly-data-table-{algorithm['name']}", "selected_row_ids"))(show_selected_cells)

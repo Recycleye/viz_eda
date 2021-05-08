@@ -13,6 +13,7 @@ from anomaly_detector import detect_anomalies_imageai, create_dataframe_imageai,
 # number of algorithms
 from hog_based_detector import detect_anomalies_hog_iforest, detect_anomalies_hog_lof
 
+PAGE_SIZE = 10
 ALGORITHMS = {'imageai': {'name': 'imageai',
                           'detector': detect_anomalies_imageai,
                           'df_creator': create_dataframe_imageai,
@@ -128,7 +129,6 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
 
 
 def anomalies_contents(analysis_path):
-    PAGE_SIZE = 10
     algo_selection_dropdown = dbc.Col(dcc.Dropdown(
         id="algo-selection",
         options=[{'label': algorithm['label'], 'value': algorithm['name']} for algorithm in ALGORITHMS.values()],
@@ -212,13 +212,76 @@ def create_anomaly_output_section(algorithm, page_size):
         ), width=1),
         dbc.Col(html.Div("Show Anomaly Table"), width=3)], style={'margin-bottom': '15px'})
     image_cell_preview = dbc.Row([], id=f"anomaly-image-cell-{algorithm['name']}", className="row d-xxl-flex")
+    image_card = create_anomaly_editing_image_card(algorithm['name'])
     image_cols_preview = dbc.Row([], id=f"anomaly-image-cols-{algorithm['name']}", className="row d-xxl-flex")
-    anomaly_table_image_div = html.Div([anomaly_table, image_cell_preview, image_cols_preview],
+    anomaly_table_image_div = html.Div([anomaly_table, image_card, image_cell_preview, image_cols_preview],
                                        id=f"anomaly-table-image-div-{algorithm['name']}")
     hidden_div = html.Div(id=f"algorithm-name-{algorithm['name']}", children=algorithm['name'],
                           style={'display': 'none'})
-    return html.Div([summary_cards, table_toggle, anomaly_table_image_div, hidden_div],
+
+    store = dcc.Store(id=f"anomaly-manual-store-{algorithm['name']}")
+
+    row_dropdown = dcc.Dropdown(
+        id=f"df-row-{algorithm['name']}",
+        options=[
+            {'label': i, 'value': i} for i in range(10)
+        ],
+        value=0,
+        placeholder='Row'
+    )
+    return html.Div([summary_cards, table_toggle, anomaly_table_image_div, hidden_div, store, row_dropdown],
                     id=f"anomaly-output-section-{algorithm['name']}")
 
-# if __name__ == '__main__':
-# generate_anomalies("")
+
+def class_drop(algorithm_name):
+    # return drop down of all possible labels
+    return dcc.Dropdown(
+        id=f"anomaly-class-toggle-{algorithm_name}",
+        options=[
+            {"label": col_name.capitalize(), "value": col_name}
+            for col_name in ["A", "B", "C"]
+        ]
+    )
+
+
+def create_anomaly_editing_image_card(algorithm_name):
+    image_card = dbc.Card(
+        [
+            dbc.CardHeader(html.H2("Change Label or Mark Not Anomaly")),
+            dbc.CardBody(
+                dbc.Row(
+                    dbc.Col(
+                        id=f"anomaly-graph-col-{algorithm_name}"
+                    ),
+                )
+            ),
+            dbc.CardFooter([
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            "Use the dropdown menu to select the correct label:"
+                        ),
+                    ],
+                    align="center",
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(class_drop(algorithm_name)),
+                        dbc.Col(dbc.Button("Confirm", id=f"anomaly-btn-confirm-{algorithm_name}", color="primary",
+                                           className="mr-2"))
+                    ],
+                    align="center",
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(dbc.Button("Not Anomaly", id=f"anomaly-btn-cancel-{algorithm_name}", color="danger",
+                                           className="mr-2", block=True)),
+                    ],
+                    align="center",
+                )],
+            ),
+        ]
+    )
+    return image_card
+    # if __name__ == '__main__':
+    # generate_anomalies("")
