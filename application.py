@@ -694,22 +694,30 @@ for algorithm in ALGORITHMS.values():
     #         Input(f"df-row-{algorithm['name']}", "value"))(highlight_row)
 
 
-def manual_mark_anomaly(selected_row, correct_label, data, anomaly_manual_store):
-    if correct_label is None:
+def manual_mark_anomaly(selected_row, correct_label, data, cancel_clicks, anomaly_manual_store):
+    if correct_label is None and cancel_clicks is None:
         raise PreventUpdate
     anomaly_manual_store = anomaly_manual_store or {'id': dict()}
     active_cell_id = str(data[selected_row]['id'])
-    anomaly_manual_store['id'][active_cell_id] = correct_label if correct_label else ""
+
+    if correct_label:
+        anomaly_manual_store['id'][active_cell_id] = correct_label
+
+    if cancel_clicks:
+        anomaly_manual_store['id'][active_cell_id] = None
+
     print(anomaly_manual_store)
-    return anomaly_manual_store
+    return anomaly_manual_store, None
 
 
 for algorithm in ALGORITHMS.values():
     app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
+                 Output(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
                  # Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
                  Input(f"df-row-{algorithm['name']}", "value"),
                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
                  Input(f"anomaly-data-table-{algorithm['name']}", "data"),
+                 Input(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
 
     # for algorithm in ALGORITHMS.values():
@@ -807,12 +815,13 @@ def display_manual_label(algorithm_name, store, anomaly_data, selected_row, sele
     df = generate_anomalies(analysis_path,
                             ALGORITHMS[algorithm_name]['detector'],
                             ALGORITHMS[algorithm_name]['df_creator'])
-    manual_labels = {int(k): v for k, v in store['id'].items()}
+    manual_labels = {int(k): v for k, v in store['id'].items() if v is not None}
     df = df[['id', 'cat_name']]
     df = df[df.id.isin(manual_labels.keys())]
     df['manually_selected_label'] = df['id'].map(manual_labels)
     df = df.rename(columns={"cat_name": "label_before"})
-    highlight_idx = (df['id'] == anomaly_data[selected_row]['id']).argmax() if selected_label else None
+    highlight_idx = (
+            df['id'] == anomaly_data[selected_row]['id']).argmax() if selected_label and manual_labels else None
 
     return df.to_dict('records'), highlight_row(highlight_idx, None)
 
@@ -828,8 +837,8 @@ for algorithm in ALGORITHMS.values():
         Input(f"anomaly-class-toggle-{algorithm['name']}", "value"))(display_manual_label)
 
 
-def move_on_to_next_row(n_clicks, selected_row):
-    if n_clicks is None:
+def move_on_to_next_row(confirm_clicks, selected_row):
+    if confirm_clicks is None:
         raise PreventUpdate
     return (selected_row + 1) % PAGE_SIZE, None, None
 
@@ -842,6 +851,17 @@ for algorithm in ALGORITHMS.values():
         Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
         Input(f"df-row-{algorithm['name']}", "value")
     )(move_on_to_next_row)
+
+
+def set_button_enabled_state(on_off):
+    return on_off
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"anomaly-btn-cancel-{algorithm['name']}", "disabled"),
+        Input(f"anomaly-class-toggle-{algorithm['name']}", "value")
+    )(set_button_enabled_state)
 
 if __name__ == '__main__':
     display_manual_label("imageai")
