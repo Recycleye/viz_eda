@@ -591,7 +591,7 @@ def tabulate_anomalies(algorithm_name, selected_algorithms):
 for algorithm in ALGORITHMS.values():
     app.callback(
         Output(f"summary-cards-{algorithm['name']}", 'children'),
-        Output(f"summary-section-{algorithm['name']}", 'style'),
+        Output(f"anomaly-output-section-{algorithm['name']}", 'style'),
         Input(f"algorithm-name-{algorithm['name']}", 'children'),
         Input('algo-selection', 'value')
     )(tabulate_anomalies)
@@ -647,7 +647,6 @@ def highlight_row(selected_row):
 
 def update_table(algorithm_name, page_current, page_size, sort_by, selected_algorithms, selected_row):
     if not selected_algorithms or algorithm_name not in selected_algorithms or algorithm_name not in ALGORITHMS:
-        # return None, {'display': 'none'}
         raise PreventUpdate
     df = generate_anomalies(analysis_path,
                             ALGORITHMS[algorithm_name]['detector'],
@@ -671,7 +670,6 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
     # df[df['id'] == active_cell['row_id']]
 
     return dfff.to_dict('records'), \
-           {'display': 'block'}, \
            create_object_plot(df[df['id'] == dfff.iloc[selected_row]['id']]), \
            highlight_row(selected_row)
 
@@ -679,7 +677,6 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
 for algorithm in ALGORITHMS.values():
     app.callback(
         Output(f"anomaly-data-table-{algorithm['name']}", 'data'),
-        Output(f"anomaly-output-section-{algorithm['name']}", 'style'),
         Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
         Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
         # Output(f"anomaly-output-section-{algorithm['name']}", 'active_cell'),
