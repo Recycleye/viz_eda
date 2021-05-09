@@ -637,9 +637,9 @@ def display_anomaly_output(button_clicked, selected_algorithms):
     return {'display': 'block'}, plots
 
 
-def highlight_row(selected_row):
+def highlight_row(selected_row, default_idx=0):
     return [{
-        "if": {"row_index": selected_row if selected_row else 0},
+        "if": {"row_index": selected_row if selected_row is not None else default_idx},
         "backgroundColor": "teal",
         'color': 'white'
     }]
@@ -688,27 +688,10 @@ for algorithm in ALGORITHMS.values():
         Input(f"df-row-{algorithm['name']}", "value"),
     )(update_table)
 
-
-def move_on_to_next_row(n_clicks, selected_row):
-    if n_clicks is None:
-        raise PreventUpdate
-    return (selected_row + 1) % PAGE_SIZE, None, None
-
-
-for algorithm in ALGORITHMS.values():
-    app.callback(
-        Output(f"df-row-{algorithm['name']}", "value"),
-        Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
-        Output(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
-        Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
-        Input(f"df-row-{algorithm['name']}", "value")
-    )(move_on_to_next_row)
-
-
-# for algorithm in ALGORITHMS.values():
-#     app.callback(
-#         Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
-#         Input(f"df-row-{algorithm['name']}", "value"))(highlight_row)
+    # for algorithm in ALGORITHMS.values():
+    #     app.callback(
+    #         Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
+    #         Input(f"df-row-{algorithm['name']}", "value"))(highlight_row)
 
 
 def manual_mark_anomaly(selected_row, correct_label, data, anomaly_manual_store):
@@ -729,12 +712,12 @@ for algorithm in ALGORITHMS.values():
                  Input(f"anomaly-data-table-{algorithm['name']}", "data"),
                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
 
-# for algorithm in ALGORITHMS.values():
-#     app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
-#                  # Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
-#                  Input(f"anomaly-data-table-{algorithm['name']}", "active_cell"),
-#                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
-#                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
+    # for algorithm in ALGORITHMS.values():
+    #     app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
+    #                  # Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
+    #                  Input(f"anomaly-data-table-{algorithm['name']}", "active_cell"),
+    #                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+    #                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
 import plotly.express as px
 from PIL import Image
 
@@ -809,8 +792,56 @@ def show_selected_cells(algorithm_name, selected_cells):
                             ALGORITHMS[algorithm_name]['df_creator'])
     return plot_multiple_objects(df, selected_cells)
 
-    # for algorithm in ALGORITHMS.values():
-    #     app.callback(
-    #         Output(f"anomaly-image-cols-{algorithm['name']}", 'children'),
-    #         Input(f"algorithm-name-{algorithm['name']}", 'children'),
-    #         Input(f"anomaly-data-table-{algorithm['name']}", "selected_row_ids"))(show_selected_cells)
+
+def highlight_row_by_id(id):
+    return [{
+        "if": {"id": id},
+        "backgroundColor": "teal",
+        'color': 'white'
+    }]
+
+
+def display_manual_label(algorithm_name, store, anomaly_data, selected_row, selected_label):
+    if not algorithm_name or not store:
+        raise PreventUpdate
+    df = generate_anomalies(analysis_path,
+                            ALGORITHMS[algorithm_name]['detector'],
+                            ALGORITHMS[algorithm_name]['df_creator'])
+    manual_labels = {int(k): v for k, v in store['id'].items()}
+    df = df[['id', 'cat_name']]
+    df = df[df.id.isin(manual_labels.keys())]
+    df['manually_selected_label'] = df['id'].map(manual_labels)
+    df = df.rename(columns={"cat_name": "label_before"})
+    highlight_idx = (df['id'] == anomaly_data[selected_row]['id']).argmax() if selected_label else None
+
+    return df.to_dict('records'), highlight_row(highlight_idx, None)
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"manual-label-data-table-{algorithm['name']}", "data"),
+        Output(f"manual-label-data-table-{algorithm['name']}", 'style_data_conditional'),
+        Input(f"algorithm-name-{algorithm['name']}", 'children'),
+        Input(f"anomaly-manual-store-{algorithm['name']}", 'data'),
+        Input(f"anomaly-data-table-{algorithm['name']}", 'data'),
+        Input(f"df-row-{algorithm['name']}", "value"),
+        Input(f"anomaly-class-toggle-{algorithm['name']}", "value"))(display_manual_label)
+
+
+def move_on_to_next_row(n_clicks, selected_row):
+    if n_clicks is None:
+        raise PreventUpdate
+    return (selected_row + 1) % PAGE_SIZE, None, None
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"df-row-{algorithm['name']}", "value"),
+        Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+        Output(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
+        Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
+        Input(f"df-row-{algorithm['name']}", "value")
+    )(move_on_to_next_row)
+
+if __name__ == '__main__':
+    display_manual_label("imageai")
