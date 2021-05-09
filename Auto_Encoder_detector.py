@@ -16,6 +16,17 @@ from crop_utils import batch_crop_images
 from anomaly_detector import create_destination
 
 def form_crop_image(image_id, annotation_id, cat_id, coco, image_path, crop_destination_path):
+    """
+    :param image_id:{int or str}  image_id of the image
+    :param annotation_id:{int or str} annotation id of the image
+    :param cat_id:{int or str} category id of image
+    :param coco:{coco format} coco dataset
+    :param image_path:{str} directory of the image
+    :param crop_destination_path:{str} directory to contain the cropped image
+
+    :return:
+        crop_image_filename: {str} the filename of the cropped image
+    """
     crop_image_filename = f"{image_id}_{annotation_id}_{cat_id}.jpg"
     if not os.path.exists(os.path.join(crop_destination_path, crop_image_filename)):
         batch_crop_images(coco, img_ids=[image_id], img_source=image_path,

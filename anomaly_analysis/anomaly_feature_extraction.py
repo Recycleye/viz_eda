@@ -1,34 +1,9 @@
 import json
-import os
-from skimage.io import imread, imshow
 from skimage.transform import resize
 from skimage.feature import hog
-from skimage import exposure
-import matplotlib.pyplot as plt
-import cv2
-import pandas as pd
-import numpy as np
-import os
-import random
-from pycocotools.coco import COCO
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import IsolationForest
-from sklearn.neighbors import LocalOutlierFactor
-from sklearn.decomposition import PCA, SparsePCA
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-import json
-import os
-from skimage.io import imread, imshow
-from skimage.transform import resize
-from skimage.feature import hog
-from skimage import exposure
-import matplotlib.pyplot as plt
-import cv2
 import pandas as pd
 import numpy as np
 from torchvision import transforms
-from pycocotools.coco import COCO
 from tqdm import tqdm
 import cv2
 import os
@@ -69,7 +44,7 @@ def get_features(analysis_path: str) -> pd.DataFrame:
                                                          "image_id": obj["image_id"]} for obj in objs])
 
         obj_df = pd.concat([pd.DataFrame(obj) for obj in objs_partial])
-        # left join
+
         df_joined = obj_df.merge(filtered_df, on="image_id", how='left')
 
         df_joined['index'] = range(1, len(df_joined) + 1)
@@ -105,13 +80,11 @@ def get_proportion(cats, img_ids, coco_data, ann_ids=None):
         im_ann = coco_data.loadImgs(ids=imgid)[0]
         all_ann_ids = coco_data.getAnnIds(imgIds=imgid, catIds=cats, iscrowd=0)
         if ann_ids is not None:
-            # intersection()	Returns a set, that is the intersection of two other sets
             all_ann_ids = list(set(all_ann_ids).intersection(set(ann_ids)))
 
-        # 一张照片内所有被提及的object
         objs = coco_data.loadAnns(ids=all_ann_ids)
-
         for obj in objs:
+
             # Check if annotation file includes precomputed area for object
             # If not, area needs to be calculated
             if "area" in obj:
@@ -159,6 +132,7 @@ def get_roughness(cats, img_ids, coco_data, ann_ids=None):
         for obj in objs:
 
             num_vertices = len(obj["segmentation"])
+
             # Check if annotation file includes precomputed area for object
             # If not, area needs to be calculated
             if "area" in obj:
@@ -217,12 +191,6 @@ def get_obj_masks(cats, img_ids, image_folder, coco_data, annsID=None, sample=3)
     :param sample: sample number of imgs to speed up processing
     :return: loaded images, list of object masks, and objIDs specified class
     """
-    # If number of img_ids exceeds sample_images,
-    # take a random sample to speed up processing time
-
-    #     if len(img_ids) > sample:
-    #         random.seed(42)
-    #         img_ids = random.sample(img_ids, sample)
     imgs = coco_data.loadImgs(img_ids)
     mask_ann_ids = []
     masks = []
@@ -255,31 +223,28 @@ def get_obj_masks(cats, img_ids, image_folder, coco_data, annsID=None, sample=3)
 
 def get_HOG(color_masks, mask_ann_ids):
     """
-    :param cats: list of category ids
-    :param img_ids: list of image ids in specified categories
-    :param coco_data: loaded coco dataset
-    :param ann_ids: list of object IDs
+    :param color_masks: list of cropped image
+    :param mask_ann_ids: list of annotation id of the image
+
     :return: average roughness an object of the given classes, uses all objs
     if ann_ids is None
     :return: df containing the hog feature vector of the color_masks
 
     """
-    print("Begin to get HOG!")
-
     HOG_feature = []
 
     for i in tqdm(color_masks):
         # resize the image
         resized_img = resize(i, (128, 64))
 
-        # use hog detector to capture the whole image 3780dimensions
+        # use hog detector to capture the whole image 3780 dimensions
         fd = hog(resized_img, orientations=9, pixels_per_cell=(8, 8), cells_per_block=(2, 2), multichannel=True)
         HOG_feature.append(fd)
 
-    # TODO :find a good n_component
+
     n_component = 0.8
     HOG_feature = pd.DataFrame(HOG_feature)
-    print(HOG_feature.info())
+
     # nomalising before pca
     scaler = StandardScaler()
     HOG_feature_n_s = scaler.fit_transform(HOG_feature)
@@ -287,16 +252,6 @@ def get_HOG(color_masks, mask_ann_ids):
     pca = PCA(n_components=n_component)
     final_result = pd.DataFrame(pca.fit_transform(HOG_feature_n_s))
     explained_variance = np.sum(pca.explained_variance_ratio_)
-
-    # if HOG_feature.shape[0] > n_component:
-    #     pca = PCA(n_components=n_component)
-    #     final_result = pca.fit_transform(HOG_feature)
-    #     explained_variance = np.sum(pca.explained_variance_ratio_)
-    # else:
-    #     final_result = HOG_feature
-    #     explained_variance = 1.0
-    # print("After PCA we get: ", final_result.shape)
-
     final_result["annID"] = mask_ann_ids
     return explained_variance, final_result
 
@@ -362,12 +317,9 @@ def get_CNN_feature(color_masks,mask_ann_ids):
     new_classifier = nn.Sequential(*list(resnet.children())[:-1])
     resnet = new_classifier
 
-    # note!!
-    # All pre-trained models expect input images normalized in the same way,
+    # preprocess the data
     # i.e. mini-batches of 3-channel RGB images of shape (3 x H x W), where H and W are expected to be at least 224.
     # The images have to be loaded in to a range of [0, 1] and then normalized using mean = [0.485, 0.456, 0.406] and std = [0.229, 0.224, 0.225].
-    # You can use the following transform to normalize:
-    # preprocess the data
 
     transform = transforms.Compose([  # [1]
         transforms.Resize([256, 256]),  # [2]
@@ -378,7 +330,7 @@ def get_CNN_feature(color_masks,mask_ann_ids):
         )
     ])
     img_this_class = torch.tensor([])
-    # Note that we will use Pillow (PIL) module extensively with TorchVision as it’s the default image backend supported by TorchVision.
+
     for image in tqdm(color_masks):
         #print(image.type)
 
@@ -414,7 +366,7 @@ def get_CNN_feature(color_masks,mask_ann_ids):
 
 def get_obj_colors(color_masks, annIDs, n_colors=4):
     """
-    :param color_masks: list of color_masks
+    :param color_masks: list of cropped image
     :return: list of dominant colours of each object specified by its mask
     """
     # k cluster termination: whenevern 20 iteratios or accuracy of epsilon=0.1 is reached, stop
@@ -449,11 +401,3 @@ def get_obj_colors(color_masks, annIDs, n_colors=4):
     obj_color['annID'] = annIDs
 
     return obj_color
-
-# if __name__ == "__main__":
-#     analysis_path = "analysis.json"
-#     pd.set_option('display.max_columns', None)
-#     pd.set_option('display.max_rows', 1000)
-#     pd.set_option('display.width', None)
-#     res = get_features(analysis_path)
-#     print(res.describe())
