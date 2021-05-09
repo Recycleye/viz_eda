@@ -194,10 +194,14 @@ def create_anomaly_output_section(algorithm, page_size):
     image_cell_preview = dbc.Row([], id=f"anomaly-image-cell-{algorithm['name']}", className="row d-xxl-flex")
     image_cols_preview = dbc.Row([], id=f"anomaly-image-cols-{algorithm['name']}", className="row d-xxl-flex")
     image_card = create_anomaly_editing_image_card(algorithm['name'])
-    anomaly_table = create_data_table(algorithm, "anomaly")
-    manual_label_table = create_data_table(algorithm, "manual-label")
+    anomaly_table = create_data_table("anomaly", algorithm["name"], algorithm["column_names"])
+    manual_label_table = create_data_table("manual-label", algorithm["name"],
+                                           ["id", "label_before", "manually_selected_label"])
+
     anomaly_table_image_div = dbc.Container(
-        [dbc.Row([dbc.Col(anomaly_table, width=12, xl=7), dbc.Col(image_card, width=12, xl=5)])],
+        dbc.Row(
+            [dbc.Col([dbc.Row(anomaly_table), dbc.Row(manual_label_table)], width=12, xl=7),
+             dbc.Col(image_card, width=12, xl=5)]),
         fluid=True,
         id=f"anomaly-table-image-div-{algorithm['name']}"
     )
@@ -274,12 +278,12 @@ def create_anomaly_editing_image_card(algorithm_name):
     return image_card
 
 
-def create_data_table(algorithm, name):
+def create_data_table(table_name, algorithm_name, column_names):
     anomaly_table = dash_table.DataTable(
-        id=f"{name}-data-table-{algorithm['name']}",
+        id=f"{table_name}-data-table-{algorithm_name}",
         # data_algorithm_index=i,
         columns=[
-            {"name": i, "id": i} for i in algorithm['column_names']
+            {"name": i, "id": i} for i in column_names
         ],
         page_current=0,
         page_size=PAGE_SIZE,
@@ -296,7 +300,7 @@ def create_data_table(algorithm, name):
             {
                 'if': {'column_id': c},
                 'textAlign': 'left'
-            } for c in algorithm['column_names']
+            } for c in column_names
         ],
         style_data_conditional=[
             {
@@ -314,7 +318,7 @@ def create_data_table(algorithm, name):
     )
     return dbc.Card(
         [
-            dbc.CardHeader(html.H2(f"{name} Data Table")),
+            dbc.CardHeader(html.H2(f"{table_name} Data Table for Algorithm {algorithm_name}")),
             dbc.CardBody(
                 dbc.Row(
                     dbc.Col(
