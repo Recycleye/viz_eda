@@ -168,7 +168,6 @@ def anomalies_contents(analysis_path):
 def create_summary(algorithm_name):
     return dbc.Card(
         id=f"summary-section-{algorithm_name}",
-        style={'display': 'none'},
         children=[
             # dbc.CardHeader(html.H2("Annotation area")),
             dbc.CardBody(
@@ -195,7 +194,8 @@ def create_anomaly_output_section(algorithm, page_size):
     image_cell_preview = dbc.Row([], id=f"anomaly-image-cell-{algorithm['name']}", className="row d-xxl-flex")
     image_cols_preview = dbc.Row([], id=f"anomaly-image-cols-{algorithm['name']}", className="row d-xxl-flex")
     image_card = create_anomaly_editing_image_card(algorithm['name'])
-    anomaly_table = create_data_table(algorithm)
+    anomaly_table = create_data_table(algorithm, "anomaly")
+    manual_label_table = create_data_table(algorithm, "manual-label")
     anomaly_table_image_div = dbc.Container(
         [dbc.Row([dbc.Col(anomaly_table, width=12, xl=7), dbc.Col(image_card, width=12, xl=5)])],
         fluid=True,
@@ -274,9 +274,9 @@ def create_anomaly_editing_image_card(algorithm_name):
     return image_card
 
 
-def create_data_table(algorithm):
+def create_data_table(algorithm, name):
     anomaly_table = dash_table.DataTable(
-        id=f"anomaly-data-table-{algorithm['name']}",
+        id=f"{name}-data-table-{algorithm['name']}",
         # data_algorithm_index=i,
         columns=[
             {"name": i, "id": i} for i in algorithm['column_names']
@@ -314,7 +314,7 @@ def create_data_table(algorithm):
     )
     return dbc.Card(
         [
-            dbc.CardHeader(html.H2("Data Table")),
+            dbc.CardHeader(html.H2(f"{name} Data Table")),
             dbc.CardBody(
                 dbc.Row(
                     dbc.Col(
