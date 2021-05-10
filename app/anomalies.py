@@ -1,4 +1,5 @@
 """anomalies.py: the layouts for anomaly tab"""
+import json
 
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
@@ -87,6 +88,15 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
 
 
 def anomalies_contents(analysis_path):
+    f = open(analysis_path, 'r')
+    analysis = json.load(f)
+
+    classes = analysis["classes"]
+    options = []
+    for cl in classes:
+        class_option = {"label": classes[cl]["name"], "value": classes[cl]["name"]}
+        options.append(class_option)
+
     algo_selection_dropdown = dbc.Col(dcc.Dropdown(
         id="algo-selection",
         options=[{'label': algorithm['label'], 'value': algorithm['name']} for algorithm in ALGORITHMS.values()],
@@ -98,7 +108,7 @@ def anomalies_contents(analysis_path):
     graph_card = dbc.Row(dbc.Card([
         dbc.CardHeader(html.H5("Objects distribution")),
         dbc.CardBody(id="plot-section")]))
-    anomaly_tables = dbc.Row([create_anomaly_output_section(algorithm) for algorithm in ALGORITHMS.values()],
+    anomaly_tables = dbc.Row([create_anomaly_output_section(algorithm, options) for algorithm in ALGORITHMS.values()],
                              id='anomaly-tables')
     anomaly_output_div = html.Div([graph_card, anomaly_tables], id='anomaly-output-div',
                                   style={'display': 'none'})
@@ -107,13 +117,13 @@ def anomalies_contents(analysis_path):
                      anomaly_output_div])
 
 
-def create_anomaly_output_section(algorithm):
+def create_anomaly_output_section(algorithm, options):
     ######## deprecated function ########
     # image_cell_preview = dbc.Row([], id=f"anomaly-image-cell-{algorithm['name']}", className="row d-xxl-flex")
     # image_cols_preview = dbc.Row([], id=f"anomaly-image-cols-{algorithm['name']}", className="row d-xxl-flex")
     #####################################
     summary_section = create_summary(algorithm['name'])
-    image_card = create_anomaly_editing_image_card(algorithm['name'])
+    image_card = create_anomaly_editing_image_card(algorithm['name'], options)
     anomaly_table = create_data_table("anomaly", algorithm["name"], algorithm["column_names"])
     manual_label_table = create_data_table("manual-label", algorithm["name"],
                                            ["id", "label_before", "manually_selected_label"])
@@ -133,15 +143,11 @@ def create_anomaly_output_section(algorithm):
                     id=f"anomaly-output-section-{algorithm['name']}")
 
 
-def class_drop(algorithm_name):
+def class_drop(algorithm_name, options):
     # return drop down of all possible labels
     return dcc.Dropdown(
         id=f"anomaly-class-toggle-{algorithm_name}",
-        options=[
-            {"label": col_name.capitalize(), "value": col_name}
-            for col_name in ["A", "B", "C"]
-        ]
-    )
+        options=options)
 
 
 def create_summary(algorithm_name):
@@ -166,7 +172,7 @@ def create_summary(algorithm_name):
     )
 
 
-def create_anomaly_editing_image_card(algorithm_name):
+def create_anomaly_editing_image_card(algorithm_name, options):
     return dbc.Card(
         [
             dbc.CardHeader(
@@ -199,7 +205,7 @@ def create_anomaly_editing_image_card(algorithm_name):
                         dbc.Col(dbc.Button("Not Anomaly", id=f"anomaly-btn-cancel-{algorithm_name}",
                                            color="danger",
                                            className="mr-2")),
-                        dbc.Col(class_drop(algorithm_name))
+                        dbc.Col(class_drop(algorithm_name, options))
                     ],
                     align="center",
                 ),

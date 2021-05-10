@@ -2,8 +2,6 @@
 from app.layouts import serve_layout
 from application import app
 
-
-
 app.layout = serve_layout
 
 port = 80
