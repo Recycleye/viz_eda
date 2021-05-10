@@ -86,20 +86,28 @@ def detect_anomalies_auto_encoder(annotation_path, images_path, intermediate_rlt
         evaluation_result.append(temp_result)
 
     class_result = []
+    # start analysis
     for item in evaluation_result:
+        # for storing images
         X_train_ls = []
         for img in item["cropped_images"]:
             imgs = np.array(img).astype("float32") / 255
             resized_X = tf.image.resize(tf.ragged.constant(imgs).to_tensor(), [64, 64])
             X_train_ls.append(resized_X)
 
+        # wrapping x_train_ls with an array
         X_train = np.array(X_train_ls)
 
+        # control whether you want to train the model or not
         model_trained = False
+        # model saved path
         model_path = 'saved_models'  # change to (absolute) directory where model is downloaded
         create_destination(model_path)
+
+        # encoding dimension 64 * 64
         encoding_dim = 4096
 
+        # construct the encoder with tensorflow
         encoder_net = tf.keras.Sequential(
             [
                 InputLayer(input_shape=(64, 64, 3)),
@@ -110,7 +118,7 @@ def detect_anomalies_auto_encoder(annotation_path, images_path, intermediate_rlt
                 Flatten(),
                 Dense(encoding_dim, )
             ])
-
+        # construct the decoder with tensorflow
         decoder_net = tf.keras.Sequential(
             [
                 InputLayer(input_shape=(encoding_dim,)),
@@ -132,16 +140,21 @@ def detect_anomalies_auto_encoder(annotation_path, images_path, intermediate_rlt
             od.fit(X_train,
                    epochs=120)
 
+        # resize the training image in order to use the model to test it
         resized_test = np.reshape(X_train_ls, (len(X_train_ls), 64, 64, 3))
+        # get the prediction result
         res = od.predict(resized_test)
         for index, i in tqdm(enumerate(res['data']['is_outlier'])):
-            if i == 0:
+            # if i = 1 then it's an outlier
+            if i == 1:
                 anomaly = {
                     "feature_extraction": "Auto-Encoder",
                     "anomaly_score": float(res['data']['instance_score'][index]),
                     "id": int(item['croped_ann_id'][index]),
                 }
                 class_result.append(anomaly)
+
+    # storing the analysis result to the given path
     with open(anomaly_path, 'w+') as outfile:
         json.dump(class_result, outfile)
 
