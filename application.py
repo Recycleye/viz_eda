@@ -638,14 +638,16 @@ def display_anomaly_output(button_clicked, selected_algorithms):
 
 
 def highlight_row(selected_row, default_idx=0):
-    return [{
-        "if": {"row_index": selected_row if selected_row is not None else default_idx},
-        "backgroundColor": "teal",
-        'color': 'white'
-    }]
+    return [
+        {
+            "if": {"row_index": selected_row if selected_row is not None else default_idx},
+            "backgroundColor": "teal",
+            'color': 'white'
+        },
+    ]
 
 
-def update_table(algorithm_name, page_current, page_size, sort_by, selected_algorithms, selected_row):
+def update_table(algorithm_name, page_current, page_size, sort_by, selected_algorithms, selected_row, store):
     if not selected_algorithms or algorithm_name not in selected_algorithms or algorithm_name not in ALGORITHMS:
         raise PreventUpdate
     df = generate_anomalies(analysis_path,
@@ -661,17 +663,31 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
         # No sort is applied
         dff = df
 
-    # active_cell = {'row': 0, 'column': 1, 'column_id': 'id', 'row_id': dff.iloc[0]['id']}
-    # print(f"CHOSEN CELL: {active_cell}")
     print(f"active_cell: {selected_row}, page current: {page_current}")
     selected_row = selected_row if selected_row else 0
     dfff = dff.iloc[page_current * page_size:(page_current + 1) * page_size]
-    # print(dfff)
-    # df[df['id'] == active_cell['row_id']]
-
+    style_not_anomaly = [
+        {
+            'if': {
+                'filter_query': f'{{id}} = {int(k)}'
+            },
+            'color': 'tomato',
+            'fontWeight': 'bold'
+        } for k, v in store['id'].items() if v is None
+    ] if store else []
+    style_anomaly = [
+        {
+            'if': {
+                'filter_query': f'{{id}} = {int(k)}'
+            },
+            'color': '#39CCCC',
+            'fontWeight': 'bold'
+        } for k, v in store['id'].items() if v is not None
+    ] if store else []
     return dfff.to_dict('records'), \
            create_object_plot(df[df['id'] == dfff.iloc[selected_row]['id']]), \
-           highlight_row(selected_row)
+           highlight_row(selected_row) + style_anomaly + style_not_anomaly
+    # highlight_row(selected_row)
 
 
 for algorithm in ALGORITHMS.values():
@@ -686,6 +702,7 @@ for algorithm in ALGORITHMS.values():
         Input(f"anomaly-data-table-{algorithm['name']}", 'sort_by'),
         Input('algo-selection', 'value'),
         Input(f"df-row-{algorithm['name']}", "value"),
+        State(f"anomaly-manual-store-{algorithm['name']}", 'data')
     )(update_table)
 
     # for algorithm in ALGORITHMS.values():
@@ -862,6 +879,18 @@ for algorithm in ALGORITHMS.values():
         Output(f"anomaly-btn-cancel-{algorithm['name']}", "disabled"),
         Input(f"anomaly-class-toggle-{algorithm['name']}", "value")
     )(set_button_enabled_state)
+
+
+def set_button_active_state(n_clicks, is_active):
+    return not is_active
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"anomaly-btn-cancel-{algorithm['name']}", "active"),
+        Input(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
+        State(f"anomaly-btn-cancel-{algorithm['name']}", "active")
+    )(set_button_active_state)
 
 if __name__ == '__main__':
     display_manual_label("imageai")
