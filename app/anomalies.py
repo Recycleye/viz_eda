@@ -87,47 +87,6 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
               }
 
 
-# ALGORITHMS = {'imageai': {'name': 'imageai',
-#                           'detector': detect_anomalies_imageai,
-#                           'label': 'ImageAI',
-#                           'index': 0,
-#                           'column_names':
-#                               ['image_id', 'id', 'cat_id', 'cat_name', 'detected_name', 'percentage_probability']}}
-
-
-# @cache.memoize()
-# def generate_anomalies(analysis_path: str) -> pd.DataFrame:
-#     with open(analysis_path, 'r') as f:
-#         analysis = json.load(f)
-#         images = analysis["images"]
-#         df = pd.DataFrame.from_dict(images, orient="index")
-#         # random select 100 images
-#         df_100 = df.sample(100)
-#         # for each image randomly select maximum 2 objects
-#         objs_partial = df_100['objects'].apply(lambda x: random.sample(x, min(2, len(x))))
-#         # drop columns not useful for plots
-#         df_100 = df_100.drop(['objects', 'classes'], axis=1)
-#         df_100["image_id"] = df_100.index.map(int)
-#         # select metrics for each object in each image and stack them up
-#         objs_partial = objs_partial.apply(lambda objs: [{"category_id": obj["category_id"],
-#                                                          "id": obj["id"],
-#                                                          "bbox": obj["bbox"],
-#                                                          "image_id": obj["image_id"]} for obj in objs])
-#         obj_df = pd.concat([pd.DataFrame(obj) for obj in objs_partial])
-#         # left join
-#         df_joined = obj_df.merge(df_100, on="image_id", how='left')
-#         df_joined['index'] = range(1, len(df_joined) + 1)
-#
-#         # Class id name dict
-#         classes = analysis['classes']
-#         class_id_name = {int(class_id): classes[class_id]['name'] for class_id in classes}
-#         df_joined['category'] = df_joined['category_id'].apply(class_id_name.get)
-#
-#         # Rearrange col
-#         cols = ['index', 'category_id', 'category', 'id', 'image_id', 'bbox', 'width', 'height', 'file_name']
-#         return df_joined[cols]
-
-
 def anomalies_contents(analysis_path):
     algo_selection_dropdown = dbc.Col(dcc.Dropdown(
         id="algo-selection",
@@ -136,9 +95,8 @@ def anomalies_contents(analysis_path):
         multi=True
     ), width=10)
     update_button = dbc.Col(dbc.Button("detect anomaly", id='update-button', color="info", className="mr-1"), width=2)
-    anomaly_tables = dbc.Row([create_anomaly_output_section(algorithm,
-                                                            page_size=PAGE_SIZE)
-                              for algorithm in ALGORITHMS.values()], id='anomaly-tables')
+    anomaly_tables = dbc.Row([create_anomaly_output_section(algorithm) for algorithm in ALGORITHMS.values()],
+                             id='anomaly-tables')
 
     graph_card = dbc.Card([
         dbc.CardBody([
@@ -165,39 +123,16 @@ def anomalies_contents(analysis_path):
                      empty_div])
 
 
-def create_summary(algorithm_name):
-    return dbc.Card(
-        id=f"summary-section-{algorithm_name}",
-        children=[
-            # dbc.CardHeader(html.H2("Annotation area")),
-            dbc.CardBody(
-                [
-                    dbc.Row([], id=f"summary-cards-{algorithm_name}",
-                            className="col-sm-12 col-md-12 col-lg-12 col-xl-12 d-flex",
-                            style={"margin-top": "15px"}),
-
-                    dbc.Row([
-                        dbc.Col(daq.ToggleSwitch(
-                            id=f"table-toggle-{algorithm_name}",
-                            value=False
-                        ), width=1),
-                        dbc.Col(html.Div("Show Anomaly Table"), width=3)], style={'margin-bottom': '15px'})
-                ]
-            ),
-        ],
-    )
-
-
-def create_anomaly_output_section(algorithm, page_size):
+def create_anomaly_output_section(algorithm):
+    ######## deprecated function ########
+    # image_cell_preview = dbc.Row([], id=f"anomaly-image-cell-{algorithm['name']}", className="row d-xxl-flex")
+    # image_cols_preview = dbc.Row([], id=f"anomaly-image-cols-{algorithm['name']}", className="row d-xxl-flex")
+    #####################################
     summary_section = create_summary(algorithm['name'])
-
-    image_cell_preview = dbc.Row([], id=f"anomaly-image-cell-{algorithm['name']}", className="row d-xxl-flex")
-    image_cols_preview = dbc.Row([], id=f"anomaly-image-cols-{algorithm['name']}", className="row d-xxl-flex")
     image_card = create_anomaly_editing_image_card(algorithm['name'])
     anomaly_table = create_data_table("anomaly", algorithm["name"], algorithm["column_names"])
     manual_label_table = create_data_table("manual-label", algorithm["name"],
                                            ["id", "label_before", "manually_selected_label"])
-
     anomaly_table_image_div = dbc.Container(
         dbc.Row(
             [dbc.Col([dbc.Row(anomaly_table), dbc.Row(manual_label_table)], width=12, xl=7),
@@ -205,13 +140,12 @@ def create_anomaly_output_section(algorithm, page_size):
         fluid=True,
         id=f"anomaly-table-image-div-{algorithm['name']}"
     )
-
     hidden_div = html.Div(id=f"algorithm-name-{algorithm['name']}", children=algorithm['name'],
                           style={'display': 'none'})
 
     store = dcc.Store(id=f"anomaly-manual-store-{algorithm['name']}")
 
-    return html.Div([summary_section, anomaly_table_image_div, hidden_div, store],
+    return dbc.Card([summary_section, anomaly_table_image_div, hidden_div, store],
                     id=f"anomaly-output-section-{algorithm['name']}")
 
 
@@ -226,8 +160,30 @@ def class_drop(algorithm_name):
     )
 
 
+def create_summary(algorithm_name):
+    return dbc.Card(
+        id=f"summary-section-{algorithm_name}",
+        children=[
+            dbc.CardBody(
+                [
+                    dbc.CardGroup([], id=f"summary-cards-{algorithm_name}",
+                                  className="col-sm-12 col-md-12 col-lg-12 col-xl-12 d-flex",
+                                  style={"margin-top": "15px"}),
+
+                    dbc.Row([
+                        dbc.Col(daq.ToggleSwitch(
+                            id=f"table-toggle-{algorithm_name}",
+                            value=False
+                        ), width=1),
+                        dbc.Col(html.Div("Show Anomaly Table"), width=3)], style={'margin-bottom': '15px'})
+                ]
+            ),
+        ],
+    )
+
+
 def create_anomaly_editing_image_card(algorithm_name):
-    image_card = dbc.Card(
+    return dbc.Card(
         [
             dbc.CardHeader(
                 [dbc.Row(html.H2("Change Label or Mark Not Anomaly")),
@@ -275,7 +231,6 @@ def create_anomaly_editing_image_card(algorithm_name):
             ),
         ]
     )
-    return image_card
 
 
 def create_data_table(table_name, algorithm_name, column_names):
