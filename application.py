@@ -666,15 +666,18 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
             'fontWeight': 'bold'
         } for k, v in store['id'].items() if v is not None
     ] if store else []
+    filename, graph = create_object_plot(df[df['id'] == dfff.iloc[selected_row]['id']])
     return dfff.to_dict('records'), \
-           create_object_plot(df[df['id'] == dfff.iloc[selected_row]['id']]), \
+           filename, \
+           graph, \
            highlight_row(selected_row) + style_anomaly + style_not_anomaly
 
 
 for algorithm in ALGORITHMS.values():
     app.callback(
         Output(f"anomaly-data-table-{algorithm['name']}", 'data'),
-        Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
+        Output(f"filename-{algorithm['name']}", 'href'),
+        Output(f"anomaly-graph-row-{algorithm['name']}", 'children'),
         Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
         Input(f"algorithm-name-{algorithm['name']}", 'children'),
         Input(f"anomaly-data-table-{algorithm['name']}", "page_current"),
@@ -749,7 +752,7 @@ def create_object_plot(df_objects):
             pad=5,
         )
     )
-    return dbc.Col(dcc.Graph(figure=fig), md=3)
+    return image_name, dcc.Graph(figure=fig)
 
 
 ########## deprecated function ####################

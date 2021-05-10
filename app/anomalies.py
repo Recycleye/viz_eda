@@ -20,8 +20,7 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
                           'index': 0,
                           'color': "rgb(4,158,215)",
                           'column_names':
-                              ['image_id', 'id', 'cat_id', 'cat_name', 'detected_name', 'percentage_probability',
-                               'file_name']},
+                              ['image_id', 'id', 'cat_id', 'cat_name', 'detected_name', 'percentage_probability']},
               'cnn_iforest': {'name': 'cnn_iforest',
                               'detector': detect_anomalies_cnn_iforest,
                               'df_creator': create_dataframe,
@@ -180,12 +179,11 @@ def create_anomaly_editing_image_card(algorithm_name):
                          options=[{'label': i, 'value': i} for i in range(PAGE_SIZE)],
                          value=0,
                          placeholder='Row'), width=2)
-                 ], justify="start")]),
+                 ], justify="start"),
+                 dbc.Row(dcc.Link(href='', id=f"filename-{algorithm_name}"))]),
             dbc.CardBody([
                 dbc.Row(
-                    dbc.Col(
-                        id=f"anomaly-graph-col-{algorithm_name}"
-                    ),
+                    id=f"anomaly-graph-row-{algorithm_name}"
                 ),
                 dbc.Row(
                     [
