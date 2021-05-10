@@ -49,16 +49,22 @@ The stats section displays in more detail the image and object distribution by c
 ### Anomalies
 The anomalies section shows the result of the automated anomaly detection run by the app on your dataset.
 
-1. Select a category from the dropdown list to see the anomalies from that category. The anomaly objects are
-highlighted in colour. Note that these objects were flagged by the model.
-2. To manually flag an image containing an anomaly, simply click on the image.
-3. Click "Export" to download an Excel file containing the list of manually flagged images, along with their respective
-categories.
+1. Select algorithm(s) from the dropdown list to compute anomalies, the result will be stored
+and available for download later.
+
+2. Summaries about anomalous objects and a graphical comparison between different algorithms are displayed.
+![](assets/images/anomaly1.png)
+
+3. Toggle the anomaly table button to display a table containing computation details as well as an image viewing window.
+4. Manually flag a non-anomalous objects (marked in red) or give an anomalous object the correct label (marked in green) if you wish.
+5. Click "Export" to download an Excel file containing the list of algorithmically computed anomalies or manually flagged objects.
+![](assets/images/anomaly2.png)
 
 ## Built With
 ### UI Framework
 * [Dash](https://plotly.com/dash/) -A framework for building ML and data science apps.
 
 ## Authors
+* **Yankang Zhu** - [GitHub](https://github.com/yk220284)
 * **Davide Locatelli** - [GitHub](https://github.com/dl2198)
 * **Ricky Ma** - [GitHub](https://github.com/ricky-ma)
