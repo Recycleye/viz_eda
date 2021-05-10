@@ -1,11 +1,12 @@
+import json
+
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
 import pandas as pd
 import plotly.express as px
-import json
 import plotly.graph_objects as go
-from numpy import log2, array
+
 
 def stats_contents(analysis_path):
     """
@@ -40,12 +41,12 @@ def stats_contents(analysis_path):
     class_df["class"] = class_names
     class_df["num objects"] = num_objects
     class_df["num images"] = num_images
-    class_df["avg size"] = [round(n/1000)*1000 for n in avg_size]
-    class_df["std"] = [round(n/1000)*1000 for n in avg_size_std]
+    class_df["avg size"] = [round(n / 1000) * 1000 for n in avg_size]
+    class_df["std"] = [round(n / 1000) * 1000 for n in avg_size_std]
 
     size_df = pd.DataFrame()
     size_df["class"] = clses
-    size_df["size"] = [round(n/1000)*1000 for n in size]
+    size_df["size"] = [round(n / 1000) * 1000 for n in size]
 
     ###########################################################################
     # Objects distribution - Bar Chart
@@ -85,13 +86,12 @@ def stats_contents(analysis_path):
         className="card flex-fill"
     )
 
-
     #############################################################################################
-#   # PIE CHART
+    #   # PIE CHART
     pie_obj_dist = go.Figure(data=[go.Pie(labels=class_df['class'], values=class_df["num objects"])])
     pie_obj_dist.update_traces(textposition='inside')
     pie_obj_dist.update_layout(xaxis_tickangle=-45,
-                           margin_t=50, font_size=10, font_color="black", height=600)
+                               margin_t=50, font_size=10, font_color="black", height=600)
 
     graph1 = dcc.Graph(figure=pie_obj_dist)
     graph1_card = dbc.Card([
@@ -126,8 +126,8 @@ def stats_contents(analysis_path):
         x=class_df['class'],
         mode='markers',
         marker=dict(
-            color=class_df['std']/1000,
-            size=class_df['avg size']/1000,
+            color=class_df['std'] / 1000,
+            size=class_df['avg size'] / 1000,
             showscale=True
         )
     )])
@@ -189,13 +189,11 @@ def stats_contents(analysis_path):
 
     contents = html.Div(className='row', children=[
         html.H3("Stats", style={"font-weight": "500"}),
-        graph_card,
-        graph1_card,
-        graph2_card,
-        graph12_card,
-        graph3_card,
-        graph4_card,
-        graph5_card
+        dbc.Row([dbc.Col(graph12_card, width=5),
+                 dbc.Col(graph5_card, width=7)]),
+        dbc.Row([
+            dbc.Col([graph3_card, graph_card, graph1_card], width=7),
+            dbc.Col([graph4_card, graph2_card], width=5)
+        ]),
     ])
     return contents
-
