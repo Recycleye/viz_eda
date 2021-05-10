@@ -39,7 +39,8 @@ Images are also checked for dimensions, here we use 1920x1080 as standard.
 
 ### Classes
 The classes section lets you visualize the dataset class by class. It provides information about the class such as number of images and objects,
-and min and max bounding box dimensions, as well as displaying all images, along with the file names, containing objects from that class.
+and min and max bounding box dimensions, as well as displaying all images, along with the file names, containing objects from that class.  
+Lazy loading upon user's request is enabled to increase response time.
 ![](assets/images/classes.png)
 
 ### Stats
