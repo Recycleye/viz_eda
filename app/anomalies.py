@@ -229,45 +229,45 @@ def class_drop(algorithm_name):
 def create_anomaly_editing_image_card(algorithm_name):
     image_card = dbc.Card(
         [
-            dbc.CardHeader(html.H2("Change Label or Mark Not Anomaly")),
+            dbc.CardHeader(
+                [dbc.Row(html.H2("Change Label or Mark Not Anomaly")),
+                 dbc.Row([
+                     dbc.Col(
+                         html.Div("row: "), width=2),
+                     dbc.Col(dcc.Dropdown(
+                         id=f"df-row-{algorithm_name}",
+                         options=[{'label': i, 'value': i} for i in range(PAGE_SIZE)],
+                         value=0,
+                         placeholder='Row'), width=2)
+                 ], justify="start")]),
             dbc.CardBody([
-                dbc.Row(
-                    [dbc.Col(
-                        html.Div("row: "), width=2),
-                        dbc.Col(dcc.Dropdown(
-                            id=f"df-row-{algorithm_name}",
-
-                            options=[
-                                {'label': i, 'value': i} for i in range(10)
-                            ],
-                            value=0,
-                            placeholder='Row'), width=2)], justify="start"),
                 dbc.Row(
                     dbc.Col(
                         id=f"anomaly-graph-col-{algorithm_name}"
                     ),
-                )]
-            ),
-            dbc.CardFooter([
+                ),
                 dbc.Row(
                     [
                         dbc.Col(
-                            "Use the dropdown menu to select the correct label:"
+                            "Mark not Anomaly or Use the dropdown to select the correct label:"
                         ),
                     ],
                     align="center",
                 ),
                 dbc.Row(
                     [
-                        dbc.Col(class_drop(algorithm_name)),
-                        dbc.Col(dbc.Button("Confirm", id=f"anomaly-btn-confirm-{algorithm_name}", color="primary",
-                                           className="mr-2"))
+                        dbc.Col(dbc.Button("Not Anomaly", id=f"anomaly-btn-cancel-{algorithm_name}",
+                                           color="danger",
+                                           className="mr-2")),
+                        dbc.Col(class_drop(algorithm_name))
                     ],
                     align="center",
                 ),
+            ]),
+            dbc.CardFooter([
                 dbc.Row(
                     [
-                        dbc.Col(dbc.Button("Not Anomaly", id=f"anomaly-btn-cancel-{algorithm_name}", color="danger",
+                        dbc.Col(dbc.Button("Next row", id=f"anomaly-btn-confirm-{algorithm_name}", color="primary",
                                            className="mr-2", block=True)),
                     ],
                     align="center",
