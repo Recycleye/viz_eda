@@ -10,7 +10,6 @@ from Auto_Encoder_detector import detect_anomalies_auto_encoder
 from CNN_based_detector import detect_anomalies_cnn_lof, detect_anomalies_cnn_iforest
 from Manually_based_detector import detect_anomalies_manual_iforest, detect_anomalies_manual_lof
 from anomaly_detector import detect_anomalies_imageai, create_dataframe_imageai, create_dataframe, detect_anomalies_size
-# number of algorithms
 from hog_based_detector import detect_anomalies_hog_iforest, detect_anomalies_hog_lof
 
 PAGE_SIZE = 10
@@ -21,7 +20,8 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
                           'index': 0,
                           'color': "rgb(4,158,215)",
                           'column_names':
-                              ['image_id', 'id', 'cat_id', 'cat_name', 'detected_name', 'percentage_probability']},
+                              ['image_id', 'id', 'cat_id', 'cat_name', 'detected_name', 'percentage_probability',
+                               'file_name']},
               'cnn_iforest': {'name': 'cnn_iforest',
                               'detector': detect_anomalies_cnn_iforest,
                               'df_creator': create_dataframe,
@@ -95,32 +95,17 @@ def anomalies_contents(analysis_path):
         multi=True
     ), width=10)
     update_button = dbc.Col(dbc.Button("detect anomaly", id='update-button', color="info", className="mr-1"), width=2)
+    algo_selection = dbc.Row([algo_selection_dropdown, update_button], style={'padding-bottom': '15px'})
+    graph_card = dbc.Row(dbc.Card([
+        dbc.CardHeader(html.H5("Objects distribution")),
+        dbc.CardBody(id="plot-section")]))
     anomaly_tables = dbc.Row([create_anomaly_output_section(algorithm) for algorithm in ALGORITHMS.values()],
                              id='anomaly-tables')
-
-    graph_card = dbc.Card([
-        dbc.CardBody([
-            dbc.Row(
-                [
-                    dbc.Col(html.H5("Objects distribution", className="card-title"))
-                ],
-                justify="between",
-            ),
-            html.Div(id="plot-section")],
-            className="card-body")],
-        className="card flex-fill w-100"
-    )
-
-    plot_section = html.Div(graph_card, className="col-sm-12 col-md-12 col-lg-12 col-xl-8 d-flex")
-
-    anomaly_output_div = html.Div([plot_section, anomaly_tables], id='anomaly-output-div',
+    anomaly_output_div = html.Div([graph_card, anomaly_tables], id='anomaly-output-div',
                                   style={'display': 'none'})
 
-    empty_div = html.Div(analysis_path, id='anomaly-empty-div')
-
-    return html.Div([dbc.Row([algo_selection_dropdown, update_button], style={'padding-bottom': '15px'}),
-                     anomaly_output_div,
-                     empty_div])
+    return html.Div([algo_selection,
+                     anomaly_output_div])
 
 
 def create_anomaly_output_section(algorithm):
