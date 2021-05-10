@@ -180,8 +180,9 @@ def create_anomaly_editing_image_card(algorithm_name):
                          value=0,
                          placeholder='Row'), width=2)
                  ], justify="start"),
-                 dbc.Row(dcc.Link(href='', id=f"filename-{algorithm_name}"))]),
+                 ]),
             dbc.CardBody([
+                dbc.Row(dcc.Link(href='', id=f"filename-{algorithm_name}")),
                 dbc.Row(
                     id=f"anomaly-graph-row-{algorithm_name}"
                 ),
