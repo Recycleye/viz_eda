@@ -5,6 +5,7 @@ import os
 import time
 from typing import List
 
+from PIL import Image
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from flask import send_from_directory
@@ -25,7 +26,6 @@ output_dir = os.path.join(os.getcwd(), "output")
 images_path = ""
 anns_path = ""
 analysis_path = ""
-# analysis_path = "/Users/ET/Desktop/Group\ Project/viz_eda_ic/output/analysis.json"
 
 """
 ================================================  
@@ -597,23 +597,6 @@ for algorithm in ALGORITHMS.values():
     )(tabulate_anomalies)
 
 
-# def show_active_cell(algorithm_name, row_selcted):
-#     df = generate_anomalies(analysis_path,
-#                             ALGORITHMS[algorithm_name]['detector'],
-#                             ALGORITHMS[algorithm_name]['df_creator'])
-#     print(f"active_cell: {row_selcted}")
-#     active_row = df[df['id'] == dff.iloc[row_selcted]['row_id']]
-#     return create_object_plot(active_row), None  # clear dropdown
-
-
-# for algorithm in ALGORITHMS.values():
-#     app.callback(Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
-#                  Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
-#                  Input(f"algorithm-name-{algorithm['name']}", 'children'),
-#                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value")
-#                  )(show_active_cell)
-
-
 def toggle_anomaly_table_image_div(toggle):
     return {'display': 'block'} if toggle else {'display': 'none'}
 
@@ -663,7 +646,6 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
         # No sort is applied
         dff = df
 
-    print(f"active_cell: {selected_row}, page current: {page_current}")
     selected_row = selected_row if selected_row else 0
     dfff = dff.iloc[page_current * page_size:(page_current + 1) * page_size]
     style_not_anomaly = [
@@ -687,7 +669,6 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
     return dfff.to_dict('records'), \
            create_object_plot(df[df['id'] == dfff.iloc[selected_row]['id']]), \
            highlight_row(selected_row) + style_anomaly + style_not_anomaly
-    # highlight_row(selected_row)
 
 
 for algorithm in ALGORITHMS.values():
@@ -695,7 +676,6 @@ for algorithm in ALGORITHMS.values():
         Output(f"anomaly-data-table-{algorithm['name']}", 'data'),
         Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
         Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
-        # Output(f"anomaly-output-section-{algorithm['name']}", 'active_cell'),
         Input(f"algorithm-name-{algorithm['name']}", 'children'),
         Input(f"anomaly-data-table-{algorithm['name']}", "page_current"),
         Input(f"anomaly-data-table-{algorithm['name']}", "page_size"),
@@ -705,60 +685,36 @@ for algorithm in ALGORITHMS.values():
         State(f"anomaly-manual-store-{algorithm['name']}", 'data')
     )(update_table)
 
-    # for algorithm in ALGORITHMS.values():
-    #     app.callback(
-    #         Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
-    #         Input(f"df-row-{algorithm['name']}", "value"))(highlight_row)
-
 
 def manual_mark_anomaly(selected_row, correct_label, data, cancel_clicks, anomaly_manual_store):
     if correct_label is None and cancel_clicks is None:
         raise PreventUpdate
     anomaly_manual_store = anomaly_manual_store or {'id': dict()}
     active_cell_id = str(data[selected_row]['id'])
-
     if correct_label:
         anomaly_manual_store['id'][active_cell_id] = correct_label
 
     if cancel_clicks:
         anomaly_manual_store['id'][active_cell_id] = None
-
-    print(anomaly_manual_store)
     return anomaly_manual_store, None
 
 
 for algorithm in ALGORITHMS.values():
     app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
                  Output(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
-                 # Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
                  Input(f"df-row-{algorithm['name']}", "value"),
                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
                  Input(f"anomaly-data-table-{algorithm['name']}", "data"),
                  Input(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
 
-    # for algorithm in ALGORITHMS.values():
-    #     app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
-    #                  # Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
-    #                  Input(f"anomaly-data-table-{algorithm['name']}", "active_cell"),
-    #                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
-    #                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
 import plotly.express as px
-from PIL import Image
-
-
-def encode_image(file_name):
-    # file_name_string = file_name.split('/')[-1]
-    return Image.open(file_name)
-
-
 import plotly.graph_objects as go
 
 
 def create_object_plot(df_objects):
     image_name = df_objects.iloc[0]['file_name']
-    image_src = encode_image(image_name)
-    # fig = px.imshow(image_src, title={'text': image_name})
+    image_src = Image.open(image_name)
     fig = px.imshow(image_src)
 
     for cat_name, image_bbox in zip(df_objects['cat_name'], df_objects['bbox']):
@@ -792,12 +748,11 @@ def create_object_plot(df_objects):
             t=10,
             pad=5,
         )
-        # paper_bgcolor="White",
     )
     return dbc.Col(dcc.Graph(figure=fig), md=3)
-    # return fig
 
 
+########## deprecated function ####################
 def plot_multiple_objects(df, selected_rows):
     df_selected = df[df['id'].isin(selected_rows)]
     img_cards = []
@@ -818,12 +773,22 @@ def show_selected_cells(algorithm_name, selected_cells):
     return plot_multiple_objects(df, selected_cells)
 
 
-def highlight_row_by_id(id):
-    return [{
-        "if": {"id": id},
-        "backgroundColor": "teal",
-        'color': 'white'
-    }]
+# def show_active_cell(algorithm_name, row_selcted):
+#     df = generate_anomalies(analysis_path,
+#                             ALGORITHMS[algorithm_name]['detector'],
+#                             ALGORITHMS[algorithm_name]['df_creator'])
+#     print(f"active_cell: {row_selcted}")
+#     active_row = df[df['id'] == dff.iloc[row_selcted]['row_id']]
+#     return create_object_plot(active_row), None  # clear dropdown
+
+
+# for algorithm in ALGORITHMS.values():
+#     app.callback(Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
+#                  Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+#                  Input(f"algorithm-name-{algorithm['name']}", 'children'),
+#                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value")
+#                  )(show_active_cell)
+#######################################################
 
 
 def display_manual_label(algorithm_name, store, anomaly_data, selected_row, selected_label):
@@ -893,4 +858,5 @@ for algorithm in ALGORITHMS.values():
     )(set_button_active_state)
 
 if __name__ == '__main__':
+    # analysis_path = "/Users/ET/Desktop/Group\ Project/viz_eda_ic/output/analysis.json"
     display_manual_label("imageai")
