@@ -78,9 +78,9 @@ def stats_contents(analysis_path):
     graph_title = "Objects Distribution"
     obj_dist = go.Figure()
     obj_dist.add_trace(
-        go.Bar(x=class_df["class"], y=class_df["num objects"], base=0, marker_color='navy', name='num objects'))
+        go.Bar(x=class_df["class"], y=class_df["num objects"], base=0, marker_color='#1D3557', name='num objects'))
     obj_dist.update_layout(xaxis_tickangle=-45,
-                           margin_t=50, font_size=10, font_color="black", height=600)
+                           margin_t=50, font_size=10, font_color="black", height=300)
     graph = dcc.Graph(figure=obj_dist)
     graph_card = dbc.Card([
         dbc.CardBody([
@@ -108,10 +108,10 @@ def stats_contents(analysis_path):
     graph2_title = "Images Distribution"
     graph2_bar = go.Figure()
     graph2_bar.add_trace(
-        go.Bar(x=class_df["class"], y=class_df["num images"], base=0, marker_color='darkred', name='num objects'))
+        go.Bar(x=class_df["class"], y=class_df["num images"], base=0, marker_color='#457B9D', name='num objects'))
 
     graph2_bar.update_layout(xaxis_tickangle=-45,
-                             margin_t=50, font_size=10, font_color="black", height=600)
+                             margin_t=50, font_size=10, font_color="black", height=300)
 
     graph2 = dcc.Graph(figure=graph2_bar)
 
@@ -134,7 +134,7 @@ def stats_contents(analysis_path):
     pie_obj_dist = go.Figure(data=[go.Pie(labels=class_df['class'], values=class_df["num objects"])])
     pie_obj_dist.update_traces(textposition='inside')
     pie_obj_dist.update_layout(xaxis_tickangle=-45,
-                               margin_t=50, font_size=10, font_color="black", height=600)
+                               margin_t=50, font_size=10, font_color="black", height=300)
 
     popobjpie = html.Div(
         [
@@ -161,7 +161,7 @@ def stats_contents(analysis_path):
     pie_img_dist = go.Figure(data=[go.Pie(labels=class_df['class'], values=class_df["num images"])])
     pie_img_dist.update_traces(textposition='inside')
     pie_img_dist.update_layout(xaxis_tickangle=-45,
-                               margin_t=50, font_size=10, font_color="black", height=600)
+                               margin_t=50, font_size=10, font_color="black", height=300)
 
     popimgpie = html.Div(
         [
@@ -211,7 +211,7 @@ def stats_contents(analysis_path):
         )
     )])
 
-    graph3_bubble.update_layout(yaxis_title="Number of Objects")
+    graph3_bubble.update_layout(yaxis_title="Number of Objects",height=400)
     graph3 = dcc.Graph(figure=graph3_bubble)
 
     graph3_card = dbc.Card([
@@ -241,11 +241,11 @@ def stats_contents(analysis_path):
     graph4_bar = px.bar(class_df,
                         x="class",
                         y="avg size",
-                        height=600
+                        height=300
                         )
 
     graph4_bar.update_layout(xaxis_tickangle=-45,
-                             margin_t=50, font_size=10, font_color="black")
+                             margin_t=50, font_size=10, font_color="black",height=300)
 
     graph4 = dcc.Graph(figure=graph4_bar)
 
@@ -279,7 +279,7 @@ def stats_contents(analysis_path):
                         )
     graph5_box.update_traces(marker_color='darkorchid')
     graph5_box.update_layout(xaxis_tickangle=-45,
-                             margin_t=50, font_size=10, font_color="black")
+                             margin_t=50, font_size=10, font_color="black",height=300)
 
     graph5 = dcc.Graph(figure=graph5_box)
 
@@ -296,14 +296,31 @@ def stats_contents(analysis_path):
         className="card flex-fill"
     )
 
-
-    contents = html.Div(className='row', children=[
-        html.H3("Stats", style={"font-weight": "500"}),
-        dbc.Row([dbc.Col(graph12_card, width=5),
-                 dbc.Col(graph5_card, width=7)]),
-        dbc.Row([
-            dbc.Col([graph3_card, graph_card, graph1_card], width=7),
-            dbc.Col([graph4_card, graph2_card], width=5)
-        ]),
+    obj_size_row = dbc.Row([
+        dbc.Col(graph4_card,width=5),
+        dbc.Col(graph5_card,width=7)
     ])
+
+    obj_size_bubble_row = dbc.Row([
+        dbc.Col(graph3_card, width=12),
+    ])
+
+    img_dist_row = dbc.Row([
+        dbc.Col(graph12_card, width=5),
+        dbc.Col(graph2_card, width=7)
+    ])
+
+    obj_dist_row = dbc.Row([
+        dbc.Col(graph1_card, width=5),
+        dbc.Col(graph_card, width=7)
+    ])
+
+    contents = html.Div([
+        html.H3("Stats", style={"font-weight": "500"}),
+        obj_size_bubble_row,
+        obj_size_row,
+        img_dist_row,
+        obj_dist_row
+    ])
+
     return contents
