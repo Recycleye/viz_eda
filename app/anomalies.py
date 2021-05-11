@@ -7,7 +7,6 @@ import dash_daq as daq
 import dash_html_components as html
 import dash_table
 
-from Auto_Encoder_detector import detect_anomalies_auto_encoder
 from CNN_based_detector import detect_anomalies_cnn_lof, detect_anomalies_cnn_iforest
 from Manually_based_detector import detect_anomalies_manual_iforest, detect_anomalies_manual_lof
 from anomaly_detector import detect_anomalies_imageai, create_dataframe_imageai, create_dataframe, detect_anomalies_size
@@ -22,6 +21,13 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
                           'color': "#1D3557",
                           'column_names':
                               ['image_id', 'id', 'cat_id', 'cat_name', 'detected_name', 'percentage_probability']},
+              'object_size': {'name': 'object_size',
+                              'detector': detect_anomalies_size,
+                              'df_creator': create_dataframe,
+                              'label': 'Object Size',
+                              'index': 8,
+                              'color': '#4acdd9',
+                              'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'size', 'average']},
               'cnn_iforest': {'name': 'cnn_iforest',
                               'detector': detect_anomalies_cnn_iforest,
                               'df_creator': create_dataframe,
@@ -69,21 +75,14 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
                                      'color': "#CDEAE5",
                                      'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'variance',
                                                       'anomaly_score']},
-              'autoencoder': {'name': 'autoencoder',
-                              'detector': detect_anomalies_auto_encoder,
-                              'df_creator': create_dataframe,
-                              'label': 'Autoencoder',
-                              'index': 7,
-                              'color': "#79d4db",
-                              'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'anomaly_score'],
-                              },
-              'object_size': {'name': 'object_size',
-                              'detector': detect_anomalies_size,
-                              'df_creator': create_dataframe,
-                              'label': 'Object Size',
-                              'index': 8,
-                              'color': '#4acdd9',
-                              'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'size', 'average']}
+              # 'autoencoder': {'name': 'autoencoder',
+              #                 'detector': detect_anomalies_auto_encoder,
+              #                 'df_creator': create_dataframe,
+              #                 'label': 'Autoencoder',
+              #                 'index': 7,
+              #                 'color': "#79d4db",
+              #                 'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'anomaly_score'],
+              #                 },
               }
 
 
@@ -103,7 +102,9 @@ def anomalies_contents(analysis_path):
         placeholder="Select an algorithm",
         multi=True
     ), width=10)
-    update_button = dbc.Col(dbc.Button("detect anomaly", id='update-button', style={'colour':'#1D3557','background-color': '#1D3557','border': '0px'},className="mr-1"), width=2)
+    update_button = dbc.Col(dbc.Button("detect anomaly", id='update-button',
+                                       style={'colour': '#1D3557', 'background-color': '#1D3557', 'border': '0px'},
+                                       className="mr-1"), width=2)
     algo_selection = dbc.Row([algo_selection_dropdown, update_button], style={'padding-bottom': '15px'})
     graph_card = dbc.Row(dbc.Card([
         dbc.CardHeader(html.H5("Objects distribution")),
@@ -184,7 +185,7 @@ def create_anomaly_editing_image_card(algorithm_name, options):
                                  options=[{'label': i, 'value': i} for i in range(PAGE_SIZE)],
                                  value=0,
                                  placeholder='Row'),
-                            ]),
+                             ]),
                  ]),
             dbc.CardBody([
                 dbc.Row(dcc.Link(href='', id=f"filename-{algorithm_name}")),
@@ -213,7 +214,8 @@ def create_anomaly_editing_image_card(algorithm_name, options):
             dbc.CardFooter([
                 dbc.Row(
                     [
-                        dbc.Col(dbc.Button("Next row", id=f"anomaly-btn-confirm-{algorithm_name}", style={'colour':'#1D3557','background-color': '#1D3557','border': '0px'},
+                        dbc.Col(dbc.Button("Next row", id=f"anomaly-btn-confirm-{algorithm_name}",
+                                           style={'colour': '#1D3557', 'background-color': '#1D3557', 'border': '0px'},
                                            className="mr-2", block=True)),
                     ],
                     align="center",
