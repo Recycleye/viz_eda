@@ -297,7 +297,8 @@ def toggle_popover(n, is_open):
 
 
 for popid in ["minbbox", "maxbbox", "numim", "numob", "objectsDistribution", \
-              "imageDistribution", "class", "idrange"]:
+              "imageDistribution", "class", "idrange","objbar","imgbar",\
+              "objpie","imgpie","bubchart","objavesize","objsize"]:
     app.callback(
         Output(f"popover-{popid}", "is_open"),
         [Input(f"popover-{popid}-target", "n_clicks")],
