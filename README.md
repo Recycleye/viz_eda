@@ -75,3 +75,7 @@ and available for download later.
 * **Yankang Zhu** - [GitHub](https://github.com/yk220284)
 * **Davide Locatelli** - [GitHub](https://github.com/dl2198)
 * **Ricky Ma** - [GitHub](https://github.com/ricky-ma)
+
+## License
+Copyright © 2021 [Recycleye](https://recycleye.com)
+Released under [MIT license](license.txt).
