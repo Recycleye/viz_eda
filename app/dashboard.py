@@ -90,7 +90,7 @@ def dashboard_contents(analysis_path):
                     dbc.Col(html.H5("Number of images", className="card-title")),
                     dbc.Col(popnumim),
                 ],
-                justify="between",
+                justify="start",
             ),
             html.H4(total_num_images, className="h2 d-inline-block mt-1 mb-4"),
             html.H6(empty_images, className="text-muted", style={"font-weight": "normal"}),
@@ -121,7 +121,7 @@ def dashboard_contents(analysis_path):
                     dbc.Col(html.H5("Number of objects", className="card-title")),
                     dbc.Col(popnumob),
                 ],
-                justify="between",
+                justify="start",
             ),
             html.H4(total_num_objects, className="h2 d-inline-block mt-1 mb-4"),
             html.H6(min_per_image, className="text-muted", style={"font-weight": "normal"}),
@@ -166,10 +166,11 @@ def dashboard_contents(analysis_path):
     graph_bar = px.bar(class_df,
                        x="class",
                        y="num objects",
-                       height=269
+                       height=269,
+                       color_discrete_sequence=['#1D3557'] * len(class_df)
                        )
     graph_bar.update_layout(xaxis_tickangle=-45,
-                            margin_t=50, font_size=10, font_color="black")
+                            margin_t=50,font_size=10, font_color="black")
 
     graph = dcc.Graph(figure=graph_bar)
 
@@ -189,7 +190,7 @@ def dashboard_contents(analysis_path):
                     dbc.Col(html.H5(graph_title, className="card-title")),
                     dbc.Col(popobdis),
                 ],
-                justify="between",
+                justify="start",
             ),
             html.Div(graph)],
             className="card-body")],
@@ -212,10 +213,11 @@ def dashboard_contents(analysis_path):
     graph2_bar = px.bar(class_df,
                         x="class",
                         y="num images",
-                        height=269
+                        height=269,
+                        color_discrete_sequence=['#1D3557'] * len(class_df)
                         )
-    graph2_bar.update_layout(xaxis_tickangle=-45,
-                             margin_t=50, font_size=10, font_color="black")
+    graph2_bar.update_layout(xaxis_tickangle=-45,margin_t=50,
+                              font_size=10, font_color="black")
 
     graph2 = dcc.Graph(figure=graph2_bar)
 
@@ -235,7 +237,7 @@ def dashboard_contents(analysis_path):
                     dbc.Col(html.H5(graph2_title, className="card-title")),
                     dbc.Col(popimdis),
                 ],
-                justify="between",
+                justify="start",
             ),
             html.Div(graph2)],
             className="card-body")],
@@ -267,7 +269,7 @@ def dashboard_contents(analysis_path):
                     dbc.Col(html.H5("Number of classes", className="card-title")),
                     dbc.Col(popclass),
                 ],
-                justify="between",
+                justify="start",
             ),
             html.H4(num_classes, className="h2 d-inline-block mt-1 mb-4"),
             html.H6(empty_classes, className="text-muted", style={"font-weight": "normal"}),
@@ -286,7 +288,7 @@ def dashboard_contents(analysis_path):
                          "This dataset contains different classes with IDs range from " + ids_range + ", \
                     of which " + str(len(analysis["unused_IDs"])) + " are never referenced and \
                        " + str(len(analysis["repeated_IDs"])) + " class(es) have repeated IDs. "),
-        ]
+        ],
     )
 
     ids_card = dbc.Card(
@@ -296,7 +298,7 @@ def dashboard_contents(analysis_path):
                     dbc.Col(html.H5("IDs range", className="card-title")),
                     dbc.Col(popids),
                 ],
-                justify="between",
+                justify="start",
             ),
             html.H4(ids_range, className="h2 d-inline-block mt-1 mb-4"),
             html.H6(unused_ids, className="text-muted", style={"font-weight": "normal"}),
@@ -341,7 +343,7 @@ def dashboard_contents(analysis_path):
                     dbc.Col(html.H5("Min bbox dimensions", className="card-title")),
                     dbc.Col(popminbbox),
                 ],
-                justify="between",
+                justify="start",
             ),
             html.H4(min_bbox_dims, className="h2 d-inline-block mt-1 mb-4"),
             html.H6(min_bbox_class, className="text-muted", style={"font-weight": "normal"})],
@@ -358,7 +360,7 @@ def dashboard_contents(analysis_path):
                     dbc.Col(html.H5("Max bbox dimensions", className="card-title")),
                     dbc.Col(popmaxbbox),
                 ],
-                justify="between",
+                justify="start",
             ),
             html.H4(max_bbox_dims, className="h2 d-inline-block mt-1 mb-4"),
             html.H6(max_bbox_class, className="text-muted", style={"font-weight": "normal"})],

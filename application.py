@@ -654,7 +654,7 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
             'if': {
                 'filter_query': f'{{id}} = {int(k)}'
             },
-            'color': 'tomato',
+            'color': '#b21515',
             'fontWeight': 'bold'
         } for k, v in store['id'].items() if v is None
     ] if store else []
@@ -676,14 +676,14 @@ def update_table(algorithm_name, page_current, page_size, sort_by, selected_algo
 
 for algorithm in ALGORITHMS.values():
     app.callback(
-        Output(f"anomaly-data-table-{algorithm['name']}", 'data'),
+        Output(f"Anomaly-data-table-{algorithm['name']}", 'data'),
         Output(f"filename-{algorithm['name']}", 'href'),
         Output(f"anomaly-graph-row-{algorithm['name']}", 'children'),
-        Output(f"anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
+        Output(f"Anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
         Input(f"algorithm-name-{algorithm['name']}", 'children'),
-        Input(f"anomaly-data-table-{algorithm['name']}", "page_current"),
-        Input(f"anomaly-data-table-{algorithm['name']}", "page_size"),
-        Input(f"anomaly-data-table-{algorithm['name']}", 'sort_by'),
+        Input(f"Anomaly-data-table-{algorithm['name']}", "page_current"),
+        Input(f"Anomaly-data-table-{algorithm['name']}", "page_size"),
+        Input(f"Anomaly-data-table-{algorithm['name']}", 'sort_by'),
         Input('algo-selection', 'value'),
         Input(f"df-row-{algorithm['name']}", "value"),
         State(f"anomaly-manual-store-{algorithm['name']}", 'data')
@@ -708,7 +708,7 @@ for algorithm in ALGORITHMS.values():
                  Output(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
                  Input(f"df-row-{algorithm['name']}", "value"),
                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
-                 Input(f"anomaly-data-table-{algorithm['name']}", "data"),
+                 Input(f"Anomaly-data-table-{algorithm['name']}", "data"),
                  Input(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
                  State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
 
@@ -814,11 +814,11 @@ def display_manual_label(algorithm_name, store, anomaly_data, selected_row, sele
 
 for algorithm in ALGORITHMS.values():
     app.callback(
-        Output(f"manual-label-data-table-{algorithm['name']}", "data"),
-        Output(f"manual-label-data-table-{algorithm['name']}", 'style_data_conditional'),
+        Output(f"Manual-Label-data-table-{algorithm['name']}", "data"),
+        Output(f"Manual-Label-data-table-{algorithm['name']}", 'style_data_conditional'),
         Input(f"algorithm-name-{algorithm['name']}", 'children'),
         Input(f"anomaly-manual-store-{algorithm['name']}", 'data'),
-        Input(f"anomaly-data-table-{algorithm['name']}", 'data'),
+        Input(f"Anomaly-data-table-{algorithm['name']}", 'data'),
         Input(f"df-row-{algorithm['name']}", "value"),
         Input(f"anomaly-class-toggle-{algorithm['name']}", "value"))(display_manual_label)
 
