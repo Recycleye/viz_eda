@@ -238,8 +238,8 @@ def create_data_table(table_name, algorithm_name, column_names):
         sort_mode='single',
         sort_by=[],
 
-        row_selectable="multi",
-        selected_rows=[],
+        # row_selectable="multi",
+        # selected_rows=[],
         style_table={'margin-top': '15px'},
         style_cell_conditional=[
             {
