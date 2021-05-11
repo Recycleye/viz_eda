@@ -2,6 +2,12 @@
 vizEDA is an exploratory data analysis tool that helps to visualize and improve complex computer vision COCO-datasets.
 
 ## Usage
+### Download Model
+To run locally
+1. Create a virtual environment (ideally) and run ```pip3 install -r requiremnt.txt```
+2. Download [yolo.h5](https://github.com/OlafenwaMoses/ImageAI/releases/download/1.0/yolo.h5) a pretrained image classification model and place it in the root of project folder.
+3. ```python3 index.py```
+
 ### New analysis
 1. Upload your COCO-dataset styled JSON annotation file
 2. Input the absolute path to your image data. For example: /Users/me/project/data/val2017images"
