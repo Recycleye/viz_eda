@@ -86,7 +86,6 @@ def analyze_dataset(images_path, anns_path):
     wrong_dims = set()
     image_ids_set = set()
     images = {}
-
     for image in all_images:
         # Order by ID
         image_ids_set.add(int(image["id"]))
@@ -103,7 +102,6 @@ def analyze_dataset(images_path, anns_path):
         images[image_id]["height"] = image["height"]
         if image["width"] != 1920 or image["height"] != 1080:
             wrong_dims.add(image_id)
-
         # Initialise empty lists for all objects and classes in image
         images[image_id]["objects"] = []
         images[image_id]["classes"] = set()
@@ -152,7 +150,6 @@ def analyze_dataset(images_path, anns_path):
 
         # Add annotation to image
         images[image_id]["objects"].append(ann)
-
         # Add class ID to image
         images[image_id]["classes"].add(class_id)
 
@@ -267,7 +264,6 @@ def analyze_dataset(images_path, anns_path):
     f.write(data)
 
     return analysis_path
-
 
 def parse_annotations(content):
     """
