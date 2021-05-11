@@ -13,3 +13,4 @@ venv/
 cache-directory/
 node_modules
 yolo.h5
+VOC_COCO/

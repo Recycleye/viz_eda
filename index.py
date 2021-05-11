@@ -4,6 +4,6 @@ from application import app
 
 app.layout = serve_layout
 
-port = 80
+port = 90
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=port, debug=True, dev_tools_ui=False)
