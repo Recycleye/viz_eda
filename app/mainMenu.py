@@ -119,7 +119,7 @@ def new_analysis_contents():
                                              style={"width": "15px", "padding-bottom": "1px", "margin-right": "5px"}),
                                     "Annotations file (.json):"]),
                                 dbc.Button([
-                                    "Drag and Drop json file or ", html.A('Upload File')
+                                    "Drag & Drop or Click to ", html.A('Upload File')
                                 ],
                                     className="mr-1",
                                     id="upload-btn",

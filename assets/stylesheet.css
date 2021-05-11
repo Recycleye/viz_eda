@@ -27593,8 +27593,8 @@ body[data-theme=light] .simplebar-scrollbar:before {
 
 .export {
     color: #fff;
-    background-color: #17a2b8;
-    border-color: #17a2b8;
+    background-color: #1D3557;
+    border-color: #1D3557;
     display: inline-block;
     font-weight: 400;
     text-align: center;
@@ -27611,7 +27611,6 @@ body[data-theme=light] .simplebar-scrollbar:before {
     border-radius: .25rem;
     transition: color .15s ease-in-out, background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out;
 }
-
 
 @keyframes fadein {
     0% {
