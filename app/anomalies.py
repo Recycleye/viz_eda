@@ -7,7 +7,6 @@ import dash_daq as daq
 import dash_html_components as html
 import dash_table
 
-from Auto_Encoder_detector import detect_anomalies_auto_encoder
 from CNN_based_detector import detect_anomalies_cnn_lof, detect_anomalies_cnn_iforest
 from Manually_based_detector import detect_anomalies_manual_iforest, detect_anomalies_manual_lof
 from anomaly_detector import detect_anomalies_imageai, create_dataframe_imageai, create_dataframe, detect_anomalies_size
@@ -22,6 +21,13 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
                           'color': "rgb(4,158,215)",
                           'column_names':
                               ['image_id', 'id', 'cat_id', 'cat_name', 'detected_name', 'percentage_probability']},
+              'object_size': {'name': 'object_size',
+                              'detector': detect_anomalies_size,
+                              'df_creator': create_dataframe,
+                              'label': 'Object Size',
+                              'index': 7,
+                              'color': 'navy',
+                              'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'size', 'average']},
               'cnn_iforest': {'name': 'cnn_iforest',
                               'detector': detect_anomalies_cnn_iforest,
                               'df_creator': create_dataframe,
@@ -69,21 +75,15 @@ ALGORITHMS = {'imageai': {'name': 'imageai',
                                      'color': "rgb(0, 153, 145)",
                                      'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'variance',
                                                       'anomaly_score']},
-              'autoencoder': {'name': 'autoencoder',
-                              'detector': detect_anomalies_auto_encoder,
-                              'df_creator': create_dataframe,
-                              'label': 'Autoencoder',
-                              'index': 7,
-                              'color': "#135f4e",
-                              'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'anomaly_score'],
-                              },
-              'object_size': {'name': 'object_size',
-                              'detector': detect_anomalies_size,
-                              'df_creator': create_dataframe,
-                              'label': 'Object Size',
-                              'index': 7,
-                              'color': 'navy',
-                              'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'size', 'average']}
+              # 'autoencoder': {'name': 'autoencoder',
+              #                 'detector': detect_anomalies_auto_encoder,
+              #                 'df_creator': create_dataframe,
+              #                 'label': 'Autoencoder',
+              #                 'index': 7,
+              #                 'color': "#135f4e",
+              #                 'column_names': ['image_id', 'id', 'cat_id', 'cat_name', 'anomaly_score'],
+              #                 },
+
               }
 
 
