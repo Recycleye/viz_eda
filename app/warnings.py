@@ -187,7 +187,7 @@ def warnings_contents(analysis_path):
         over_represented_classes_card,
         under_represented_classes_card],
     id="class-warnings-collapse",
-    is_open=True
+    is_open=False
     )
 
     class_warnings_collapse = dbc.Row([
@@ -274,7 +274,7 @@ def warnings_contents(analysis_path):
         unused_ids_card,
         repeated_ids_card],
     id="id-warnings-collapse",
-    is_open=True
+    is_open=False
     )
 
     id_warnings_collapse = dbc.Row([
@@ -399,7 +399,7 @@ def warnings_contents(analysis_path):
         missing_images_card,
         wrong_dims_card],
     id="image-warnings-collapse",
-    is_open=True
+    is_open=False
     )
 
     image_warnings_collapse = dbc.Row([

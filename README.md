@@ -2,6 +2,12 @@
 vizEDA is an exploratory data analysis tool that helps to visualize and improve complex computer vision COCO-datasets.
 
 ## Usage
+### Download Model
+To run locally
+1. Create a virtual environment (ideally) and run ```pip3 install -r requiremnt.txt```
+2. Download [yolo.h5](https://github.com/OlafenwaMoses/ImageAI/releases/download/1.0/yolo.h5) a pretrained image classification model and place it in the root of project folder.
+3. ```python3 index.py```
+
 ### New analysis
 1. Upload your COCO-dataset styled JSON annotation file
 2. Input the absolute path to your image data. For example: /Users/me/project/data/val2017images"
@@ -39,7 +45,8 @@ Images are also checked for dimensions, here we use 1920x1080 as standard.
 
 ### Classes
 The classes section lets you visualize the dataset class by class. It provides information about the class such as number of images and objects,
-and min and max bounding box dimensions, as well as displaying all images, along with the file names, containing objects from that class.
+and min and max bounding box dimensions, as well as displaying all images, along with the file names, containing objects from that class.  
+Lazy loading upon user's request is enabled to increase response time.
 ![](assets/images/classes.png)
 
 ### Stats
@@ -49,16 +56,26 @@ The stats section displays in more detail the image and object distribution by c
 ### Anomalies
 The anomalies section shows the result of the automated anomaly detection run by the app on your dataset.
 
-1. Select a category from the dropdown list to see the anomalies from that category. The anomaly objects are
-highlighted in colour. Note that these objects were flagged by the model.
-2. To manually flag an image containing an anomaly, simply click on the image.
-3. Click "Export" to download an Excel file containing the list of manually flagged images, along with their respective
-categories.
+1. Select algorithm(s) from the dropdown list to compute anomalies, the result will be stored
+and available for download later.
+
+2. Summaries about anomalous objects and a graphical comparison between different algorithms are displayed.
+![](assets/images/anomaly1.png)
+
+3. Toggle the anomaly table button to display a table containing computation details as well as an image viewing window.
+4. Manually flag a non-anomalous objects (marked in red) or give an anomalous object the correct label (marked in green) if you wish.
+5. Click "Export" to download an Excel file containing the list of algorithmically computed anomalies or manually flagged objects.
+![](assets/images/anomaly2.png)
 
 ## Built With
 ### UI Framework
 * [Dash](https://plotly.com/dash/) -A framework for building ML and data science apps.
 
 ## Authors
+* **Yankang Zhu** - [GitHub](https://github.com/yk220284)
 * **Davide Locatelli** - [GitHub](https://github.com/dl2198)
 * **Ricky Ma** - [GitHub](https://github.com/ricky-ma)
+
+## License
+Copyright © 2021 [Recycleye](https://recycleye.com)
+Released under [MIT license](license.txt).

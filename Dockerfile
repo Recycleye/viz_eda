@@ -8,8 +8,9 @@ RUN apt-get update \
 && apt-get clean
 
 COPY requirements.txt /
-RUN pip install numpy
 RUN pip install -r /requirements.txt
+RUN pip uninstall numpy
+RUN pip install numpy
 
 RUN mkdir /app
 WORKDIR /app
@@ -17,4 +18,4 @@ ADD . /app/
 
 EXPOSE 80
 ENTRYPOINT [ "python" ]
-CMD ["application.py"]
+CMD ["index.py"]

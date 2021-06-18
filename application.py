@@ -1,223 +1,42 @@
-import base64, json, os
-import dash
-import random
+"""application.py: all callbacks for the entire app."""
+import base64
 import json
-import dash_bootstrap_components as dbc
-import dash_core_components as dcc
-import dash_html_components as html 
-import plotly.express as px
-import pandas as pd
+import os
 import time
+from typing import List
 
+from PIL import Image
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 from flask import send_from_directory
-from app.mainMenu import *
-from app.dashboard import dashboard_contents
-from app.warnings import warnings_contents
-from app.stats import stats_contents
-from app.classes import classes_contents, generate_class_report
-from app.analysis import analyze_dataset, parse_annotations, parse_analysis
 
+# Test generate anomalies
+from anomaly_detector import generate_anomalies
+from app.analysis import analyze_dataset, parse_annotations
+from app.anomalies import anomalies_contents, PAGE_SIZE
+from app.classes import classes_contents, generate_class_report
+from app.dashboard import dashboard_contents
+from app.mainMenu import *
+from app.stats import stats_contents
+from app.warnings import warnings_contents
 # App configuration
-app = dash.Dash(__name__)
-app.config["suppress_callback_exceptions"] = True
-application = app.server
-port = 80
+from dash_app import app, cache
+
 output_dir = os.path.join(os.getcwd(), "output")
 images_path = ""
 anns_path = ""
 analysis_path = ""
 
-# App elements
+"""
+================================================  
+              Generic Callbacks 
+================================================
+"""
 
-navbar = html.Div(
-    [
-        dbc.Row(
-            [
-                dbc.Col(
-                    html.A(html.I(className="hamburger align-self-center"),
-                    className="sidebar-toggle d-flex", id="toggle")
-                )                    
-            ],
-            align = "center",
-            no_gutters = True,
-            style = {
-                "width" : "100%"
-            }
-        )
-    ],
-    className = "navbar navbar-expand navbar-light navbar-bg"
-)
-
-sidebar = html.Div([
-        html.A(html.Span("vizEDA",className="align-middle"),
-        className="sidebar-brand",href="http://0.0.0.0"),
-        html.Div([
-            html.Div([
-                dbc.Button([
-                    html.Img(src="assets/icons/info.svg",
-                    style={"width":"15px","padding-bottom":"1px",
-                    "margin-right":"5px"}),
-                    "About"
-                    ],
-                    color="primary", 
-                    className="mr-1",
-                    id="sidebar-btn-1",
-                    n_clicks_timestamp='0',
-                    style={"margin-left":"5%","margin-top":"0",
-                    "margin-bottom":"0",
-                    "background":"transparent","border-color":"transparent"})],
-                id = "sidebar-btn-container-1"
-            ),
-            html.Div([
-                dbc.Button([
-                    html.Img(src="assets/icons/plus.svg",
-                    style={"width":"15px","padding-bottom":"1px",
-                    "margin-right":"5px"}),
-                    "New analysis"
-                    ],
-                    color="primary", 
-                    className="mr-1",
-                    id="sidebar-btn-2",
-                    n_clicks_timestamp='0',
-                    style={"margin-left":"5%","margin-top":"0",
-                    "margin-bottom":"0","background":"transparent",
-                    "border-color":"transparent"})],
-                id = "sidebar-btn-container-2"
-            ),
-            html.Div([
-                dbc.Button([
-                    html.Img(src="assets/icons/upload.svg",
-                    style={"width":"15px","padding-bottom":"1px",
-                    "margin-right":"5px"}),
-                    "Upload analysis"
-                    ],
-                    color="primary", 
-                    className="mr-1",
-                    id="sidebar-btn-3",
-                    n_clicks_timestamp='0',
-                    style={"margin-left":"5%","margin-top":"0",
-                    "margin-bottom":"0","background":"transparent",
-                    "border-color":"transparent"})],
-                id = "sidebar-btn-container-3"),
-            ],
-            style={"margin-top":"10%"}
-        ),
-        html.Div([
-            html.Div([
-                dbc.Button([
-                    html.Img(src="assets/icons/sliders.svg",
-                    style={"width":"15px","padding-bottom":"1px",
-                    "margin-right":"5px"}),
-                    "Dashboard"
-                    ],
-                    color="primary",
-                    className="mr-1",
-                    id="sidebar-btn-4",
-                    n_clicks_timestamp='0',
-                    disabled= True,
-                    style={"margin-left":"5%","margin-top":"0",
-                    "margin-bottom":"0","background":"transparent",
-                    "border-color":"transparent"})],
-                id = "sidebar-btn-container-4"),
-            html.Div([
-                dbc.Button([
-                    html.Img(src="assets/icons/alert-triangle.svg",
-                    style={"width":"15px","padding-bottom":"1px",
-                    "margin-right":"5px"}),
-                    "Warnings"
-                    ],
-                    color="primary",
-                    className="mr-1",
-                    id="sidebar-btn-5",
-                    n_clicks_timestamp='0',
-                    disabled= True,
-                    style={"margin-left":"5%","margin-top":"0",
-                    "margin-bottom":"0","background":"transparent",
-                    "border-color":"transparent"})],
-                id = "sidebar-btn-container-5"),
-            html.Div([
-                dbc.Button([
-                    html.Img(src="assets/icons/layout.svg",
-                    style={"width":"15px","padding-bottom":"1px",
-                    "margin-right":"5px"}),
-                    "Classes"
-                    ],
-                    color="primary",
-                    className="mr-1",
-                    id="sidebar-btn-6",
-                    n_clicks_timestamp='0',
-                    disabled=True,
-                    style={"margin-left":"5%","margin-top":"0",
-                    "margin-bottom":"0","background":"transparent",
-                    "border-color":"transparent"})],
-                id = "sidebar-btn-container-6"),
-            html.Div([
-                dbc.Button([
-                    html.Img(src="assets/icons/bar-chart-2.svg",
-                    style={"width":"15px","padding-bottom":"1px",
-                    "margin-right":"5px"}),
-                    "Stats"
-                    ],
-                    color="primary", 
-                    className="mr-1",
-                    id="sidebar-btn-7",
-                    n_clicks_timestamp='0',
-                    disabled=True,
-                    style={"margin-left":"5%","margin-top":"0",
-                    "margin-bottom":"0","background":"transparent",
-                    "border-color":"transparent"})],
-                id = "sidebar-btn-container-7"),
-            html.Div([
-                dbc.Button([
-                    html.Img(src="assets/icons/crosshair.svg",
-                    style={"width":"15px","padding-bottom":"1px",
-                    "margin-right":"5px"}),
-                    "Anomalies"
-                    ],
-                    color="primary", 
-                    className="mr-1",
-                    id="sidebar-btn-8",
-                    n_clicks_timestamp='0',
-                    disabled=True,
-                    style={"margin-left":"5%","margin-top":"0",
-                    "margin-bottom":"0","background":"transparent",
-                    "border-color":"transparent"})],
-                id = "sidebar-btn-container-8"),
-            ],
-            style={"margin-top":"10%"}
-        )
-    ],
-    className="sidebar collapse",
-    id="sidebar"
-)
-
-header = html.Div(
-    [
-        sidebar,
-        html.Div([
-            navbar, 
-            html.Div(id="main-content", style={"padding":"2.5rem 2.5rem 1rem"})
-        ],
-        className="main")
-    ],
-    className="wrapper"
-)
-
-def serve_layout():
-    return html.Div(
-        [
-            header
-        ]
-    )
-
-app.layout = serve_layout
-
-# App callbacks
 
 @app.callback(
-    Output("sidebar","className"),
-    Input("toggle","n_clicks")
+    Output("sidebar", "className"),
+    Input("toggle", "n_clicks")
 )
 def do_show_hide(n_clicks):
     """
@@ -229,44 +48,45 @@ def do_show_hide(n_clicks):
     if n_clicks is None:
         return "sidebar"
     if n_clicks % 2:
-            return "sidebar collapse"
+        return "sidebar collapse"
     else:
-         return "sidebar"
+        return "sidebar"
+
 
 @app.callback(
-    Output("main-content","children"),
+    Output("main-content", "children"),
     [Output(f"sidebar-btn-container-{i}", "style") for i in range(1, 9)],
     [Input(f"sidebar-btn-{i}", "n_clicks_timestamp") for i in range(1, 9)],
 )
-def change_contents(about,new_analysis,upload_analysis,dashboard,warnings,\
-    classes,stats,anomalies):
+def change_contents(about, new_analysis, upload_analysis, dashboard, warnings, \
+                    classes, stats, anomalies):
     """
     Controls the logic of the menus
 
     :param about: timestamp of last click on about menu btn
     :param new_analysis: timestamp of last click on new analysis menu btn
     :param upload_analysis: timestamp of last click on upload analysis menu btn
-    :param dashbard: timestamp of last click on dashboard menu btn
+    :param dashboard: timestamp of last click on dashboard menu btn
     :param warnings: timestamp of last click on warnings menu btn
     :param classes: timestamp of last click on classes menu btn
     :param stats: timestamp of last click on stats menu btn
     :param anomalies: timestamp of last click on anomalies menu btn
-    :return: conent to be displayed in main content div
+    :return: content to be displayed in main content div
     """
     global analysis_path
 
     # Make a list of all click timestamps
     # Notice: Dash uses 13 digits UNIX time, we want 10 digits only
-    clicks = [0, 
-        int(str(about)[:10]), 
-        int(str(new_analysis)[:10]), 
-        int(str(upload_analysis)[:10]),
-        int(str(dashboard)[:10]), 
-        int(str(warnings)[:10]), 
-        int(str(classes)[:10]), 
-        int(str(stats)[:10]), 
-        int(str(anomalies)[:10])
-    ]
+    clicks = [0,
+              int(str(about)[:10]),
+              int(str(new_analysis)[:10]),
+              int(str(upload_analysis)[:10]),
+              int(str(dashboard)[:10]),
+              int(str(warnings)[:10]),
+              int(str(classes)[:10]),
+              int(str(stats)[:10]),
+              int(str(anomalies)[:10])
+              ]
     # Get index of last click btn
     last_clicked = clicks.index(max(clicks))
 
@@ -274,8 +94,8 @@ def change_contents(about,new_analysis,upload_analysis,dashboard,warnings,\
     color = "linear-gradient(90deg,rgba(59,125,221,.1),rgba(59,125,221,.0875) 50%,transparent)"
 
     # Define style for selected/non-selected buttons
-    selected = {"background":color, "border-left":"3px solid #3b7ddd"}
-    non_selected = {"background":"transparent","border-color":"transparent"}
+    selected = {"background": color, "border-left": "3px solid #3b7ddd"}
+    non_selected = {"background": "transparent", "border-color": "transparent"}
 
     # Set all btns to non-selected
     style_about = non_selected
@@ -313,10 +133,18 @@ def change_contents(about,new_analysis,upload_analysis,dashboard,warnings,\
         contents = stats_contents(analysis_path)
         style_stats = selected
     elif last_clicked == 8:
-        contents = html.Div("Anomalies")
+        contents = anomalies_contents(analysis_path)
         style_anomalies = selected
-    return contents,style_about,style_new_analysis,style_upload_analysis,\
-        style_dashboard,style_warnings,style_classes,style_stats,style_anomalies
+    return contents, style_about, style_new_analysis, style_upload_analysis, \
+           style_dashboard, style_warnings, style_classes, style_stats, style_anomalies
+
+
+"""
+================================================  
+             New/Upload Analysis Callbacks 
+================================================
+"""
+
 
 @app.callback(
     Output("images-upload", "valid"),
@@ -324,13 +152,13 @@ def change_contents(about,new_analysis,upload_analysis,dashboard,warnings,\
 )
 def check_images_path(path):
     """
-    Validates the path upload field by checking 
+    Validates the path upload field by checking
     if the path provided by the user exists
 
     :param path: the image path provided by the user
     :return: True if path exists, False otherwise
-    """ 
-    global images_path,analysis_path
+    """
+    global images_path, analysis_path
     if path is None:
         path = ""
     if os.path.isdir(path):
@@ -353,27 +181,29 @@ def check_images_path(path):
 def check_upload(contents):
     """
     Validates the upload button by checking uploaded file is in JSON format
-    
+
     :param contents: the file uploaded by the user
     :return: color update for upload button
     """
-    global anns_path,analysis_path
-    style = {"width":"100%","margin-bottom":"1.5rem","font-weight":"700",
-    "background":"#222e3c"}
+    global anns_path, analysis_path
+    style = {"width": "100%", "margin-bottom": "1.5rem", "font-weight": "700",
+             "background": "#222e3c"}
     if contents is not None:
         content_type, decoded_content = contents.split(",", 1)
-        # If user did not upload analysis, 
+        # If user did not upload analysis,
         # get the annotations to generate analysis
+
         if analysis_path == "":
             anns_path = parse_annotations(decoded_content)
-        
+
         if content_type == "data:application/json;base64":
-            style = {"width":"100%","margin-bottom":"1.5rem",
-            "font-weight":"700","background":"green"}
+            style = {"width": "100%", "margin-bottom": "1.5rem",
+                     "font-weight": "700", "background": "green"}
         else:
-            style = {"width":"100%","margin-bottom":"1.5rem",
-            "font-weight":"700","background":"red"}
+            style = {"width": "100%", "margin-bottom": "1.5rem",
+                     "font-weight": "700", "background": "red"}
     return style
+
 
 @app.callback(
     Output("analyze-btn", "disabled"),
@@ -397,6 +227,7 @@ def check_inputs(valid_path, btn_style):
     else:
         return True
 
+
 @app.callback(
     Output("analyze-btn", "style"),
     Input("analyze-btn", "disabled")
@@ -409,21 +240,22 @@ def update_analyze_button(disabled):
     :param disabled: if the button is disabled
     """
     if not disabled:
-        style = {"width":"100%","text-transform":"uppercase",
-        "font-weight":"700","background":"green","outline":"green"}
+        style = {"width": "100%", "text-transform": "uppercase",
+                 "font-weight": "700", "background": "green", "outline": "green"}
     else:
-        style = {"width":"100%","text-transform":"uppercase",
-        "font-weight":"700"}
+        style = {"width": "100%", "text-transform": "uppercase",
+                 "font-weight": "700"}
     return style
 
+
 @app.callback(
-    Output("sidebar-btn-4","n_clicks_timestamp"),
+    Output("sidebar-btn-4", "n_clicks_timestamp"),
     [Output(f"sidebar-btn-{i}", "disabled") for i in range(4, 9)],
-    Input("analyze-btn","n_clicks"),
+    Input("analyze-btn", "n_clicks"),
 )
 def enable_buttons(click):
     """
-    Enables/disables the dashboard, warnings, classes, stats and 
+    Enables/disables the dashboard, warnings, classes, stats and
     anomalies buttons depending on if analyze btn is clicked
 
     Automatically switches to dashboard if analyze btn is clicked
@@ -438,10 +270,41 @@ def enable_buttons(click):
             analysis_path = analyze_dataset(images_path, anns_path)
         # Dashboard click event
         dashboard_click = int(time.time())
-        return dashboard_click,False,False,False,False,False
+        return dashboard_click, False, False, False, False, False
     else:
         dashboard_click = 0
-        return dashboard_click,True,True,True,True,True
+        return dashboard_click, True, True, True, True, True
+
+
+"""
+================================================  
+             Toggle Popover Callbacks 
+================================================
+"""
+
+
+def toggle_popover(n, is_open):
+    """
+    Shows/hides informance on toggle click
+
+    :param n: num clicks on toggle button
+    :param is_open: open state of class warnings
+    :return: negated open state if click, else open state
+    """
+    if n:
+        return not is_open
+    return is_open
+
+
+for popid in ["minbbox", "maxbbox", "numim", "numob", "objectsDistribution", \
+              "imageDistribution", "class", "idrange","objbar","imgbar",\
+              "objpie","imgpie","bubchart","objavesize","objsize"]:
+    app.callback(
+        Output(f"popover-{popid}", "is_open"),
+        [Input(f"popover-{popid}-target", "n_clicks")],
+        [State(f"popover-{popid}", "is_open")],
+    )(toggle_popover)
+
 
 @app.callback(
     Output("class-warnings-collapse", "is_open"),
@@ -460,6 +323,14 @@ def toggle_class_warnings_collapse(n, is_open):
         return not is_open
     return is_open
 
+
+"""
+================================================  
+             Warnings Page Callbacks 
+================================================
+"""
+
+
 @app.callback(
     Output("id-warnings-collapse", "is_open"),
     [Input("id-warnings-collapse-button", "n_clicks")],
@@ -476,6 +347,7 @@ def toggle_id_warnings_collapse(n, is_open):
     if n:
         return not is_open
     return is_open
+
 
 @app.callback(
     Output("image-warnings-collapse", "is_open"),
@@ -494,10 +366,104 @@ def toggle_image_warnings_collapse(n, is_open):
         return not is_open
     return is_open
 
+
+"""
+================================================  
+             Classes Page Callbacks 
+================================================
+"""
+PICTURE_INIT_LOAD: int = 20
+
+
+# Store intermediate results
+@cache.memoize()
+def encode_cache_picture(value: str) -> List[str]:
+    """
+    Encode and store the results
+    Args:
+        value: class name
+    Returns:
+        list of picture file names and its source
+    """
+    f = open(analysis_path, 'r')
+    analysis = json.load(f)
+    images = analysis["images"]
+    classes = analysis["classes"]
+    selected_class = classes[value]
+
+    encoded_images = []
+    for image in selected_class["images"]:
+        file_name = images[str(image)]["file_name"]
+        file_name_string = file_name.split('/')[-1]
+        encoded_image = base64.b64encode(open(file_name, 'rb').read())
+        img_src = "data:image/png;base64,{}".format(encoded_image.decode())
+
+        encoded_images.append((file_name_string, img_src))
+    print(f"done with class {value}")
+    return encoded_images
+
+
+@app.callback(Output('picture-signal', 'children'), Input('class-selection', 'value'))
+def compute_value(value):
+    """
+    Cache and compute the images src and send a signal when done
+    Args:
+        value: class name
+    """
+    if value:
+        encode_cache_picture(value)
+    return value
+
+
+# Update page when select another class
+
+
+@app.callback(
+    [Output('image-cols', 'children'), Output('load-button', 'style')],
+    [Input('picture-signal', 'children')],
+    [State('image-cols', 'children'), State('load-button', 'style')]
+)
+def update_pictures(value, image_cols, button_style):
+    style = {}  # change display none to no style
+    encoded_images = encode_cache_picture(value)
+    for name, src in encoded_images[:PICTURE_INIT_LOAD]:
+        img_card = dbc.Card([
+            dbc.CardImg(src=src),
+            dbc.CardBody(name)],
+            className="card flex-fill"
+        )
+        img_col = dbc.Col(img_card, className="col-md-3")
+        image_cols.append(img_col)
+    return dbc.Row(image_cols, className="image-cols row d-xxl-flex"), style
+
+
+@app.callback([Output('more-image-cols', 'children'), Output('load-button', 'disabled'),
+               Output('load-button', 'children')],
+              [Input('picture-signal', "children"), Input('load-button', 'n_clicks')],
+              [State('more-image-cols', "children"), State('load-button', 'disabled'),
+               State('load-button', 'children')])
+def load_more_pictures(value, click, children, disabled, button_txt):
+    if click and not disabled:
+        encoded_images = encode_cache_picture(value)
+        if len(encoded_images) <= PICTURE_INIT_LOAD + click - 1:
+            disabled = True
+            button_txt = "no more picture"
+        else:
+            img_card = dbc.Card([
+                # click starts from 1.
+                dbc.CardImg(src=encoded_images[PICTURE_INIT_LOAD + click - 1][1]),
+                dbc.CardBody(encoded_images[PICTURE_INIT_LOAD + click - 1][0])],
+                className="card flex-fill"
+            )
+            img_col = dbc.Col(img_card, className="col-md-3")
+            children.append(img_col)
+    return children, disabled, button_txt
+
+
 @app.callback(
     Output("selection-div", "style"),
-    Output("class-report","children"),
-    Output("class-report","style"),
+    Output("class-report", "children"),
+    Output("class-report", "style"),
     Input("class-selection", "value")
 )
 def display_class_report(selection):
@@ -506,14 +472,22 @@ def display_class_report(selection):
     """
     global analysis_path
     if selection is None:
-        style_sel={"padding-top":"25%", "margin":"auto", "width":"20%"}
+        style_sel = {"padding-top": "25%", "margin": "auto", "width": "20%"}
         rep_children = None
-        style_rep={"display":"none"}
+        style_rep = {"display": "none"}
     else:
-        style_sel={"width":"20%"}
-        rep_children = generate_class_report(analysis_path,selection)
-        style_rep={"display":"block"}
-    return style_sel,rep_children,style_rep
+        style_sel = {"width": "20%"}
+        rep_children = generate_class_report(analysis_path, selection)
+        style_rep = {"display": "block"}
+    return style_sel, rep_children, style_rep
+
+
+"""
+================================================  
+             Download Callbacks 
+================================================
+"""
+
 
 @app.server.route("/download/<path:filename>")
 def download(filename):
@@ -523,8 +497,370 @@ def download(filename):
     :param filename: the name of the file to be downloaded
     :return: the file download
     """
-    return send_from_directory(output_dir, filename, 
-    attachment_filename = filename, as_attachment = True)
+    return send_from_directory(output_dir, filename,
+                               attachment_filename=filename, as_attachment=True)
 
-if __name__ == "__main__":
-    application.run(host ="0.0.0.0", port = port, debug = True)
+
+"""
+================================================  
+             Anomalies Page Callbacks 
+================================================
+"""
+from app.anomalies import ALGORITHMS
+
+
+@app.callback(
+    Output('update-button', 'n_clicks'),
+    Input('algo-selection', 'value'))
+def reset_click_upon_toggle_value_change(value):
+    return 0
+
+
+def plot_anomalies(selected_algorithms):
+    # return dcc.Graph(figure=px.histogram(anomaly_dfs[0], x="cat_name"))
+    # coco = COCO(analysis_path)
+    # cats = coco.loadCats(coco.getCatIds())
+    # cat_names = [cat["name"] for cat in cats]
+    f = open(analysis_path, 'r')
+    analysis = json.load(f)
+    classes = analysis["classes"]
+
+    class_names = []
+    for cl in classes:
+        class_names.append(classes[cl]["name"])
+
+    fig = go.Figure()
+    for algorithm_name in selected_algorithms:
+        anomaly_df = generate_anomalies(analysis_path,
+                                        ALGORITHMS[algorithm_name]['detector'],
+                                        ALGORITHMS[algorithm_name]['df_creator'])
+        freq = anomaly_df.groupby('cat_name').size()
+        fig.add_trace(go.Bar(
+            x=class_names,
+            y=[freq.get(cat_name, 0) for cat_name in class_names],
+            name=algorithm_name,
+            marker_color=ALGORITHMS[algorithm_name]['color']
+        ))
+
+    return dcc.Graph(figure=fig)
+
+
+def summary_card(title, summary_data, description):
+    return dbc.Card(
+        dbc.CardBody([
+            html.H5(title, className="card-title"),
+            html.H4(summary_data, className="h2 d-inline-block mt-1 mb-4"),
+            html.H6(description, className="text-muted", style={"font-weight": "normal"})],
+        ),
+        className="card flex-fill"
+    )
+
+
+def tabulate_anomalies(algorithm_name, selected_algorithms):
+    if not selected_algorithms or algorithm_name not in selected_algorithms or algorithm_name not in ALGORITHMS:
+        return None, {'display': 'none'}
+    anomaly_df = generate_anomalies(analysis_path,
+                                    ALGORITHMS[algorithm_name]['detector'],
+                                    ALGORITHMS[algorithm_name]['df_creator'])
+    f = open(analysis_path, 'r')
+    analysis = json.load(f)
+    tot_img_num = int(analysis["total_num_images"])
+    tot_object_num = int(analysis["total_num_objects"])
+    anomaly_object_num = anomaly_df.shape[0]
+    anomaly_img_num = anomaly_df.file_name.unique().shape[0]
+    freq = anomaly_df.groupby('cat_name').size()
+    max_idx = freq.argmax()
+    class_highest_anomaly_name = freq.index[max_idx]
+    class_highest_anomaly_cnt = freq[max_idx]
+    summary_row = [
+        dbc.Col(
+            summary_card('Algorithm', ALGORITHMS[algorithm_name]['label'], ""),
+            className="col-sm-3 col-lg-3 col-xxl-3 d-flex"),
+        dbc.Col(
+            summary_card('Number of Anomalous Images', anomaly_img_num,
+                         f"Proportion: {round(anomaly_img_num / tot_img_num * 100)}%"),
+            className="col-sm-3 col-lg-3 col-xxl-3 d-flex"),
+        dbc.Col(summary_card('Number of Anomalous Object', anomaly_object_num,
+                             f"Proportion: {round(anomaly_object_num / tot_object_num * 100)}%"),
+                className="col-sm-3 col-lg-3 col-xxl-3 d-flex"),
+        dbc.Col(summary_card('Class with Highest Number of Anomalies', class_highest_anomaly_name,
+                             f"Number of Anomalies: {class_highest_anomaly_cnt}"),
+                className="col-sm-3 col-lg-3 col-xxl-3 d-flex")]
+    return summary_row, {'display': 'block', "width": "100%"}
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"summary-cards-{algorithm['name']}", 'children'),
+        Output(f"anomaly-output-section-{algorithm['name']}", 'style'),
+        Input(f"algorithm-name-{algorithm['name']}", 'children'),
+        Input('algo-selection', 'value')
+    )(tabulate_anomalies)
+
+
+def toggle_anomaly_table_image_div(toggle):
+    return {'display': 'block'} if toggle else {'display': 'none'}
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"anomaly-table-image-div-{algorithm['name']}", 'style'),
+        Input(f"table-toggle-{algorithm['name']}", "value"),
+    )(toggle_anomaly_table_image_div)
+
+
+@app.callback(Output('anomaly-output-div', 'style'),
+              Output('plot-section', 'children'),
+              Input('update-button', 'n_clicks'),
+              Input('algo-selection', 'value'))
+def display_anomaly_output(button_clicked, selected_algorithms):
+    if not (button_clicked and selected_algorithms):
+        return {'display': 'none'}, None
+
+    plots = plot_anomalies(selected_algorithms)
+    return {'display': 'block'}, plots
+
+
+def highlight_row(selected_row, default_idx=0):
+    return [
+        {
+            "if": {"row_index": selected_row if selected_row is not None else default_idx},
+            "backgroundColor": "teal",
+            'color': 'white'
+        },
+    ]
+
+
+def update_table(algorithm_name, page_current, page_size, sort_by, selected_algorithms, selected_row, store):
+    if not selected_algorithms or algorithm_name not in selected_algorithms or algorithm_name not in ALGORITHMS:
+        raise PreventUpdate
+    df = generate_anomalies(analysis_path,
+                            ALGORITHMS[algorithm_name]['detector'],
+                            ALGORITHMS[algorithm_name]['df_creator'])
+    if len(sort_by):
+        dff = df.sort_values(
+            sort_by[0]['column_id'],
+            ascending=sort_by[0]['direction'] == 'asc',
+            inplace=False
+        )
+    else:
+        # No sort is applied
+        dff = df
+
+    selected_row = selected_row if selected_row else 0
+    dfff = dff.iloc[page_current * page_size:(page_current + 1) * page_size]
+    style_not_anomaly = [
+        {
+            'if': {
+                'filter_query': f'{{id}} = {int(k)}'
+            },
+            'color': '#b21515',
+            'fontWeight': 'bold'
+        } for k, v in store['id'].items() if v is None
+    ] if store else []
+    style_anomaly = [
+        {
+            'if': {
+                'filter_query': f'{{id}} = {int(k)}'
+            },
+            'color': '#39CCCC',
+            'fontWeight': 'bold'
+        } for k, v in store['id'].items() if v is not None
+    ] if store else []
+    filename, graph = create_object_plot(df[df['id'] == dfff.iloc[selected_row]['id']])
+    return dfff.to_dict('records'), \
+           filename, \
+           graph, \
+           highlight_row(selected_row) + style_anomaly + style_not_anomaly
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"Anomaly-data-table-{algorithm['name']}", 'data'),
+        Output(f"filename-{algorithm['name']}", 'href'),
+        Output(f"anomaly-graph-row-{algorithm['name']}", 'children'),
+        Output(f"Anomaly-data-table-{algorithm['name']}", 'style_data_conditional'),
+        Input(f"algorithm-name-{algorithm['name']}", 'children'),
+        Input(f"Anomaly-data-table-{algorithm['name']}", "page_current"),
+        Input(f"Anomaly-data-table-{algorithm['name']}", "page_size"),
+        Input(f"Anomaly-data-table-{algorithm['name']}", 'sort_by'),
+        Input('algo-selection', 'value'),
+        Input(f"df-row-{algorithm['name']}", "value"),
+        State(f"anomaly-manual-store-{algorithm['name']}", 'data')
+    )(update_table)
+
+
+def manual_mark_anomaly(selected_row, correct_label, data, cancel_clicks, anomaly_manual_store):
+    if correct_label is None and cancel_clicks is None:
+        raise PreventUpdate
+    anomaly_manual_store = anomaly_manual_store or {'id': dict()}
+    active_cell_id = str(data[selected_row]['id'])
+    if correct_label:
+        anomaly_manual_store['id'][active_cell_id] = correct_label
+
+    if cancel_clicks:
+        anomaly_manual_store['id'][active_cell_id] = None
+    return anomaly_manual_store, None
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(Output(f"anomaly-manual-store-{algorithm['name']}", 'data'),
+                 Output(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
+                 Input(f"df-row-{algorithm['name']}", "value"),
+                 Input(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+                 Input(f"Anomaly-data-table-{algorithm['name']}", "data"),
+                 Input(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
+                 State(f"anomaly-manual-store-{algorithm['name']}", 'data'))(manual_mark_anomaly)
+
+import plotly.express as px
+import plotly.graph_objects as go
+
+
+def create_object_plot(df_objects):
+    image_name = df_objects.iloc[0]['file_name']
+    image_src = Image.open(image_name)
+    fig = px.imshow(image_src)
+
+    for cat_name, image_bbox in zip(df_objects['cat_name'], df_objects['bbox']):
+        fig.add_shape(
+            type='rect',
+            line_color='yellow',
+            fillcolor='turquoise',
+            opacity=0.4,
+            x0=image_bbox[0], x1=image_bbox[0] + image_bbox[2], y0=image_bbox[1], y1=image_bbox[1] + image_bbox[3]
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[image_bbox[0], image_bbox[0], image_bbox[0] + image_bbox[2], image_bbox[0] + image_bbox[2]],
+                y=[image_bbox[1] + image_bbox[3], image_bbox[1], image_bbox[1], image_bbox[1] + image_bbox[3]],
+                text="Label: " + cat_name,
+                fill='toself',
+                fillcolor='turquoise',
+                opacity=0.1,
+                hoveron='fills',
+                showlegend=False,
+                mode='text'))
+
+    fig.update_layout(
+        autosize=False,
+        width=500,
+        height=500,
+        margin=dict(
+            l=5,
+            r=5,
+            b=10,
+            t=10,
+            pad=5,
+        )
+    )
+    return image_name, dcc.Graph(figure=fig)
+
+
+########## deprecated function ####################
+def plot_multiple_objects(df, selected_rows):
+    df_selected = df[df['id'].isin(selected_rows)]
+    img_cards = []
+    for image in df_selected['image_id'].unique():
+        df_objects = df_selected[df_selected['image_id'] == image]
+        img_card = create_object_plot(df_objects)
+        img_cards.append(img_card)
+    return img_cards
+
+
+def show_selected_cells(algorithm_name, selected_cells):
+    if not selected_cells:
+        return []
+    print(selected_cells)
+    df = generate_anomalies(analysis_path,
+                            ALGORITHMS[algorithm_name]['detector'],
+                            ALGORITHMS[algorithm_name]['df_creator'])
+    return plot_multiple_objects(df, selected_cells)
+
+
+# def show_active_cell(algorithm_name, row_selcted):
+#     df = generate_anomalies(analysis_path,
+#                             ALGORITHMS[algorithm_name]['detector'],
+#                             ALGORITHMS[algorithm_name]['df_creator'])
+#     print(f"active_cell: {row_selcted}")
+#     active_row = df[df['id'] == dff.iloc[row_selcted]['row_id']]
+#     return create_object_plot(active_row), None  # clear dropdown
+
+
+# for algorithm in ALGORITHMS.values():
+#     app.callback(Output(f"anomaly-graph-col-{algorithm['name']}", 'children'),
+#                  Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+#                  Input(f"algorithm-name-{algorithm['name']}", 'children'),
+#                  Input(f"anomaly-class-toggle-{algorithm['name']}", "value")
+#                  )(show_active_cell)
+#######################################################
+
+
+def display_manual_label(algorithm_name, store, anomaly_data, selected_row, selected_label):
+    if not algorithm_name or not store:
+        raise PreventUpdate
+    df = generate_anomalies(analysis_path,
+                            ALGORITHMS[algorithm_name]['detector'],
+                            ALGORITHMS[algorithm_name]['df_creator'])
+    manual_labels = {int(k): v for k, v in store['id'].items() if v is not None}
+    df = df[['id', 'cat_name']]
+    df = df[df.id.isin(manual_labels.keys())]
+    df['manually_selected_label'] = df['id'].map(manual_labels)
+    df = df.rename(columns={"cat_name": "label_before"})
+    highlight_idx = (
+            df['id'] == anomaly_data[selected_row]['id']).argmax() if selected_label and manual_labels else None
+
+    return df.to_dict('records'), highlight_row(highlight_idx, None)
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"Manual-Label-data-table-{algorithm['name']}", "data"),
+        Output(f"Manual-Label-data-table-{algorithm['name']}", 'style_data_conditional'),
+        Input(f"algorithm-name-{algorithm['name']}", 'children'),
+        Input(f"anomaly-manual-store-{algorithm['name']}", 'data'),
+        Input(f"Anomaly-data-table-{algorithm['name']}", 'data'),
+        Input(f"df-row-{algorithm['name']}", "value"),
+        Input(f"anomaly-class-toggle-{algorithm['name']}", "value"))(display_manual_label)
+
+
+def move_on_to_next_row(confirm_clicks, selected_row):
+    if confirm_clicks is None:
+        raise PreventUpdate
+    return (selected_row + 1) % PAGE_SIZE, None, None
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"df-row-{algorithm['name']}", "value"),
+        Output(f"anomaly-class-toggle-{algorithm['name']}", "value"),
+        Output(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
+        Input(f"anomaly-btn-confirm-{algorithm['name']}", "n_clicks"),
+        Input(f"df-row-{algorithm['name']}", "value")
+    )(move_on_to_next_row)
+
+
+def set_button_enabled_state(on_off):
+    return on_off
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"anomaly-btn-cancel-{algorithm['name']}", "disabled"),
+        Input(f"anomaly-class-toggle-{algorithm['name']}", "value")
+    )(set_button_enabled_state)
+
+
+def set_button_active_state(n_clicks, is_active):
+    return not is_active
+
+
+for algorithm in ALGORITHMS.values():
+    app.callback(
+        Output(f"anomaly-btn-cancel-{algorithm['name']}", "active"),
+        Input(f"anomaly-btn-cancel-{algorithm['name']}", "n_clicks"),
+        State(f"anomaly-btn-cancel-{algorithm['name']}", "active")
+    )(set_button_active_state)
+
+if __name__ == '__main__':
+    # analysis_path = "/Users/ET/Desktop/Group\ Project/viz_eda_ic/output/analysis.json"
+    display_manual_label("imageai")
